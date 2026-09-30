@@ -584,6 +584,32 @@ struct Editor {
             handle.setFillColor(accent());
             target.draw(handle);
         }
+        if (const auto frame = compiled.frames.find(selectedFrame); frame != compiled.frames.end()) {
+            const float radius = compiled.pool.influence(frame->second);
+            if (radius > 0.f) {
+                const forma::Vec2 origin = compiled.pool.frameWorld(frame->second).apply({0.f, 0.f});
+                bool child = false;
+                for (uint32_t i = 0; i < compiled.pool.frameCount(); ++i) {
+                    const forma::FrameId candidate{i};
+                    if (compiled.pool.parent(candidate) != frame->second) {
+                        continue;
+                    }
+                    child = true;
+                    forma::Polyline2 segment;
+                    segment.pts = {origin, compiled.pool.frameWorld(candidate).apply({0.f, 0.f})};
+                    forma::StrokeStyle style{radius * 2.f, forma::Color::hex(0x1e4d3c, 48), forma::LineCap::Round,
+                                             forma::LineJoin::Round};
+                    forma::draw(target, forma::strokePolyline(segment, style));
+                }
+                if (!child) {
+                    sf::CircleShape disk(radius);
+                    disk.setOrigin({radius, radius});
+                    disk.setPosition({origin.x, origin.y});
+                    disk.setFillColor(sf::Color(0x1e, 0x4d, 0x3c, 48));
+                    target.draw(disk);
+                }
+            }
+        }
         for (const auto& primitive : compiled.primitives) {
             const bool selected = primitive.id == selectedPrimitive;
             auto strokeOf = [&](forma::StrokeStyle style) {
@@ -594,26 +620,25 @@ struct Editor {
                 return style;
             };
             if (primitive.skin && primitive.kind != forma::PrimitiveKind::Circle) {
-                std::vector<forma::NodeId> ids;
-                bool closed = false;
-                if (primitive.kind == forma::PrimitiveKind::Polyline) {
-                    ids = primitive.polyline.nodes;
-                    closed = primitive.polyline.closed;
-                } else if (primitive.kind == forma::PrimitiveKind::Catmull) {
-                    ids = primitive.catmull.nodes;
-                    closed = primitive.catmull.closed;
-                } else {
-                    ids = primitive.polygon.nodes;
-                    closed = true;
-                }
-                const forma::Polyline2 line = forma::deformSkinLine(compiled.pool, ids, closed);
-                if (primitive.kind == forma::PrimitiveKind::Polygon && primitive.fill) {
-                    forma::Polygon2 shape;
-                    shape.outer.pts = line.pts;
-                    forma::draw(target, forma::fillPolygon(shape, *primitive.fill));
-                }
                 forma::StrokeStyle style = primitive.stroke.value_or(forma::StrokeStyle{2.f, forma::Color::hex(0x1c1915)});
-                forma::draw(target, forma::strokePolyline(line, strokeOf(style)));
+                if (primitive.kind == forma::PrimitiveKind::Catmull) {
+                    const forma::Polyline2 line = forma::deformSkinCurve(
+                        compiled.pool, primitive.catmull.nodes, primitive.catmull.closed, primitive.catmull.curve,
+                        primitive.catmull.parameterization, 0.6f);
+                    forma::draw(target, forma::strokePolyline(line, strokeOf(style)));
+                } else {
+                    const std::vector<forma::NodeId> ids = primitive.kind == forma::PrimitiveKind::Polyline
+                                                               ? primitive.polyline.nodes
+                                                               : primitive.polygon.nodes;
+                    const bool closed = primitive.kind == forma::PrimitiveKind::Polygon || primitive.polyline.closed;
+                    const forma::Polyline2 line = forma::deformSkinLine(compiled.pool, ids, closed);
+                    if (primitive.kind == forma::PrimitiveKind::Polygon && primitive.fill) {
+                        forma::Polygon2 shape;
+                        shape.outer.pts = line.pts;
+                        forma::draw(target, forma::fillPolygon(shape, *primitive.fill));
+                    }
+                    forma::draw(target, forma::strokePolyline(line, strokeOf(style)));
+                }
             } else if (primitive.kind == forma::PrimitiveKind::Polyline || primitive.kind == forma::PrimitiveKind::Catmull) {
                 const forma::Polyline2 line = primitive.kind == forma::PrimitiveKind::Polyline
                                                   ? forma::resolve(compiled.pool, primitive.polyline)

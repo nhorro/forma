@@ -36,4 +36,8 @@ std::vector<Vec2> skinRest(const NodePool& pool, std::span<const NodeId> nodes);
 /// World-space outline of a skinned polyline or polygon. The nodes stay at their bind pose.
 Polyline2 deformSkinLine(const NodePool& pool, std::span<const NodeId> nodes, bool closed);
 
+/// Samples the curve in bind space, then deforms those points. The controls are not the outline.
+Polyline2 deformSkinCurve(const NodePool& pool, std::span<const NodeId> nodes, bool closed, float curve,
+                          CurveParameterization parameterization, float chordError);
+
 }  // namespace forma

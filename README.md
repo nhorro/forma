@@ -54,7 +54,7 @@ cmake --build build
 
 Bind mode edits the rest pose, the shapes, and the hinges. Pose mode bends a bone by dragging it; the arc is the angular limit. Save always writes the bind pose. "Use pose as bind" copies the preview back into the rest pose, and the limits stay relative to that new rest.
 
-A shape lives on a frame, so it rotates with that bone and cannot span two bones. A joint is optional: the child frame's pivot is a node in the parent, and the hinge limit is degrees relative to the rest angle. A primitive marked `skin` ignores that and is deformed by the bone radii instead.
+A shape lives on a frame, so it rotates with that bone and cannot span two bones. A joint is optional: the child frame's pivot is a node in the parent, and the hinge limit is degrees relative to the rest angle. A primitive marked `skin` is sampled in the bind pose and then deformed by the bone radii. The editor draws the selected bone's radius. A curve is resampled before it is deformed, so the outline stays a curve.
 
 In Pose mode, dragging a bone runs IK on that limb. The chain stops where the parent branches, so a hand drag solves the arm and a foot drag solves the leg. The pole is taken from the hinge: a knee limited to one side bends that way. `solveIk` is the same call you make at runtime, once per limb, after the body is placed. It only writes rotations.
 

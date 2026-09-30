@@ -391,6 +391,31 @@ void backlogTests() {
     CHECK(std::fabs(skinned.pts[0].x - 40.f) < 1.5f);
     CHECK(std::fabs(skinned.pts[0].y - 30.f) < 1.5f);
 
+    NodePool chain;
+    const FrameId nearBone = chain.createFrame(chain.root());
+    chain.setPivot(nearBone, chain.create({0.f, 0.f}));
+    chain.setInfluence(nearBone, 30.f);
+    const FrameId farBone = chain.createFrame(nearBone);
+    chain.setPivot(farBone, chain.create(nearBone, {40.f, 0.f}));
+    chain.setInfluence(farBone, 15.f);
+    const FrameId tip = chain.createFrame(farBone);
+    chain.setPivot(tip, chain.create(farBone, {40.f, 0.f}));
+    const NodeId held = chain.create({20.f, 0.f});
+    const NodeId carried = chain.create({70.f, 0.f});
+    const NodeId controls[] = {chain.create({0.f, 0.f}), chain.create({30.f, 24.f}), chain.create({60.f, 0.f}),
+                               chain.create({90.f, 0.f})};
+    FramePose curl = chain.pose(farBone);
+    curl.rotation = pi / 2.f;
+    chain.setPose(farBone, curl);
+    const NodeId pair[] = {held, carried};
+    const Polyline2 blended = deformSkinLine(chain, pair, false);
+    CHECK(std::fabs(blended.pts[0].x - 20.f) < 1.f);
+    CHECK(std::fabs(blended.pts[0].y) < 1.f);
+    CHECK(std::fabs(blended.pts[1].x - 40.f) < 1.5f);
+    CHECK(std::fabs(blended.pts[1].y - 30.f) < 1.5f);
+    const Polyline2 curved = deformSkinCurve(chain, controls, false, 1.f, CurveParameterization::Centripetal, 0.5f);
+    CHECK(curved.pts.size() > 4);
+
     Clip clip;
     clip.duration = 1.f;
     ClipTrack track;

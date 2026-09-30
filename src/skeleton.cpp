@@ -1,6 +1,7 @@
 #include "forma/skeleton.hpp"
 
 #include "forma/predicates.hpp"
+#include "forma/sample.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -123,6 +124,15 @@ Polyline2 deformSkinLine(const NodePool& pool, std::span<const NodeId> nodes, bo
     line.closed = closed;
     const std::vector<Vec2> rest = skinRest(pool, nodes);
     line.pts = deformSkin(pool, rest, boneInfluences(pool));
+    return line;
+}
+
+Polyline2 deformSkinCurve(const NodePool& pool, std::span<const NodeId> nodes, bool closed, float curve,
+                          CurveParameterization parameterization, float chordError) {
+    const std::vector<Vec2> rest = skinRest(pool, nodes);
+    Polyline2 line = sampleCurve(rest, closed, curve, parameterization, chordError);
+    line.pts = deformSkin(pool, line.pts, boneInfluences(pool));
+    line.closed = closed;
     return line;
 }
 

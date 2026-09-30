@@ -98,6 +98,48 @@ void appendSpan(std::vector<Vec2>& out, Vec2 p0, Vec2 p1, Vec2 p2, Vec2 p3, floa
     }
 }
 
+Vec2 atPoint(std::span<const Vec2> points, int index, bool closed) {
+    const int n = static_cast<int>(points.size());
+    if (n == 0) {
+        return {};
+    }
+    if (closed) {
+        const int i = (index % n + n) % n;
+        return points[static_cast<std::size_t>(i)];
+    }
+    const int i = std::clamp(index, 0, n - 1);
+    return points[static_cast<std::size_t>(i)];
+}
+
+}  // namespace
+
+Polyline2 sampleCurve(std::span<const Vec2> points, bool closed, float curve, CurveParameterization parameterization,
+                      float chordError) {
+    Polyline2 out;
+    out.closed = closed;
+    const int n = static_cast<int>(points.size());
+    if (n == 0) {
+        return out;
+    }
+    if (n == 1) {
+        out.pts.push_back(points[0]);
+        return out;
+    }
+    const float alpha = alphaOf(parameterization);
+    const int spans = closed ? n : n - 1;
+    out.pts.push_back(atPoint(points, 0, closed));
+    for (int i = 0; i < spans; ++i) {
+        appendSpan(out.pts, atPoint(points, i - 1, closed), atPoint(points, i, closed),
+                   atPoint(points, i + 1, closed), atPoint(points, i + 2, closed), alpha, curve, chordError);
+    }
+    if (closed && out.pts.size() >= 2 && distance(out.pts.front(), out.pts.back()) < 1e-2f) {
+        out.pts.pop_back();
+    }
+    return out;
+}
+
+namespace {
+
 FrameId requireFrame(const NodePool& pool, const std::vector<NodeId>& ids) {
     if (ids.empty()) {
         return {};
@@ -147,31 +189,17 @@ Polyline2 resolve(const NodePool& pool, const Polyline& line) {
 }
 
 Polyline2 sample(const NodePool& pool, const CatmullRom& curve, float chordError) {
-    Polyline2 out;
-    out.closed = curve.closed;
     const int n = static_cast<int>(curve.nodes.size());
     if (n == 0) {
-        return out;
+        return {};
     }
     const FrameId frame = requireFrame(pool, curve.nodes);
-    if (n == 1) {
-        out.pts.push_back(pool.get(curve.nodes[0]));
-        applyFrame(pool, frame, out.pts);
-        return out;
+    std::vector<Vec2> local;
+    local.reserve(curve.nodes.size());
+    for (NodeId id : curve.nodes) {
+        local.push_back(pool.get(id));
     }
-    const float alpha = alphaOf(curve.parameterization);
-    const int spans = curve.closed ? n : n - 1;
-    out.pts.push_back(atNode(pool, curve.nodes, 0, curve.closed));
-    for (int i = 0; i < spans; ++i) {
-        const Vec2 p0 = atNode(pool, curve.nodes, i - 1, curve.closed);
-        const Vec2 p1 = atNode(pool, curve.nodes, i, curve.closed);
-        const Vec2 p2 = atNode(pool, curve.nodes, i + 1, curve.closed);
-        const Vec2 p3 = atNode(pool, curve.nodes, i + 2, curve.closed);
-        appendSpan(out.pts, p0, p1, p2, p3, alpha, curve.curve, chordError);
-    }
-    if (curve.closed && out.pts.size() >= 2 && distance(out.pts.front(), out.pts.back()) < 1e-2f) {
-        out.pts.pop_back();
-    }
+    Polyline2 out = sampleCurve(local, curve.closed, curve.curve, curve.parameterization, chordError);
     applyFrame(pool, frame, out.pts);
     return out;
 }
