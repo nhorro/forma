@@ -353,10 +353,19 @@ void backlogTests() {
     track.keys = {{0.f, 0.f}, {0.5f, 0.4f}, {1.f, 0.f}};
     clip.tracks.push_back(track);
     CHECK(std::fabs(sampleClip(clip, track, 0.25f) - 0.2f) < 1e-3f);
+    track.keys = {{0.5f, 0.4f}, {0.f, 0.f}, {1.f, 0.f}};
+    CHECK(std::fabs(sampleClip(clip, track, 0.25f) - 0.2f) < 1e-3f);
+    track.keys = {{0.f, 0.f}, {0.5f, 1.f}};
+    CHECK(std::fabs(sampleClip(clip, track, 0.75f) - 0.5f) < 1e-3f);
+    CHECK(std::fabs(sampleClip(clip, track, 1.75f) - 0.5f) < 1e-3f);
     const std::unordered_map<std::string, FrameId> names{{"bone", bone}};
     pool.resetToRest();
     applyClip(pool, names, clip, 0.5f, ClipBlend::Replace);
     CHECK(std::fabs(pool.pose(bone).rotation - 0.4f) < 1e-3f);
+    pool.setLimits(bone, true, -0.1f, 0.1f);
+    applyClip(pool, names, clip, 0.5f, ClipBlend::Replace);
+    CHECK(std::fabs(pool.pose(bone).rotation - 0.1f) < 1e-3f);
+    pool.setLimits(bone, false, 0.f, 0.f);
 
     const char* json = R"({
       "forma": 1, "kind": "asset", "root": "root",

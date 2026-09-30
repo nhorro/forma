@@ -817,6 +817,8 @@ struct Editor {
                 if (ImGui::Selectable(doc.clips[static_cast<std::size_t>(i)].id.c_str(), clipIndex == i)) {
                     clipIndex = i;
                     clipTime = 0.f;
+                    forma::applyClip(compiled.pool, compiled.frames, doc.clips[static_cast<std::size_t>(i)], 0.f,
+                                     forma::ClipBlend::Replace);
                 }
             }
             if (clipIndex >= 0 && clipIndex < static_cast<int>(doc.clips.size())) {
@@ -826,9 +828,17 @@ struct Editor {
                         compiled.pool.resetToRest();
                     }
                 }
-                ImGui::SliderFloat("time", &clipTime, 0.f, std::max(clip.duration, 0.01f));
+                const bool dragged = ImGui::SliderFloat("time", &clipTime, 0.f, std::max(clip.duration, 0.01f));
                 if (playClip && drag != Drag::Pose) {
                     clipTime += ImGui::GetIO().DeltaTime;
+                    if (clip.duration > 1e-4f) {
+                        clipTime = std::fmod(clipTime, clip.duration);
+                        if (clipTime < 0.f) {
+                            clipTime += clip.duration;
+                        }
+                    }
+                }
+                if (playClip || dragged) {
                     forma::applyClip(compiled.pool, compiled.frames, clip, clipTime, forma::ClipBlend::Replace);
                 }
             }

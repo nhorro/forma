@@ -27,7 +27,8 @@ struct Clip {
 
 enum class ClipBlend { Replace, Add };
 
-/// Loops `time` into the clip. Keys are relative to rest.
+/// Loops `time` into the clip and wraps across the seam, from the last key back to the first.
+/// Keys do not need to be sorted. Values are radians relative to rest.
 float sampleClip(const Clip& clip, const ClipTrack& track, float time);
 
 /// Replace writes `rest + key`. Add adds `key` to the live rotation.

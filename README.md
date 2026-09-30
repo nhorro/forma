@@ -103,4 +103,4 @@ Coordinates in the node pool are pixels, Y down. The exporter divides by `pixels
 
 ## What this version leaves out
 
-Ellipses as their own primitive, holes as an authoring primitive (boolean results can contain them), gradients, and convex decomposition of concave fixtures. An oriented rectangle is a polygon in a rotated frame, not a separate type. Curve sockets and animation clips are not in the file yet; stable frame and node ids are the hook.
+Ellipses as their own primitive, holes as an authoring primitive (boolean results can contain them), and gradients. An oriented rectangle is a polygon in a rotated frame, not a separate type. Clips live on the document: joint angles relative to rest, looped across the last key back to the first.
