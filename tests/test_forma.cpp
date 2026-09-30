@@ -172,6 +172,76 @@ void hierarchyTests() {
     CHECK(bad);
 }
 
+void skeletonTests() {
+    using namespace forma;
+    const float pi = 3.1415926535f;
+    NodePool pool;
+    const NodeId joint = pool.create({40.f, 0.f});
+    const FrameId bone = pool.createFrame(pool.root());
+    pool.setPivot(bone, joint);
+    CHECK(std::fabs(pool.frameWorld(bone).apply({0.f, 0.f}).x - 40.f) < 1e-3f);
+    pool.place(joint, {55.f, 4.f});
+    CHECK(std::fabs(pool.frameWorld(bone).apply({0.f, 0.f}).x - 55.f) < 1e-3f);
+    CHECK(std::fabs(pool.frameWorld(bone).apply({0.f, 0.f}).y - 4.f) < 1e-3f);
+    pool.set(joint, {10.f, 0.f});
+    CHECK(std::fabs(pool.frameWorld(bone).apply({0.f, 0.f}).x - 10.f) < 1e-3f);
+    CHECK(std::fabs(pool.frameBind(bone).apply({0.f, 0.f}).x - 55.f) < 1e-3f);
+
+    pool.setLimits(bone, true, -0.2f, 0.4f);
+    FramePose posed = pool.pose(bone);
+    posed.rotation = 1.2f;
+    pool.setPose(bone, posed);
+    CHECK(std::fabs(pool.pose(bone).rotation - 1.2f) < 1e-4f);
+    pool.clampToLimits(bone);
+    CHECK(std::fabs(pool.pose(bone).rotation - 0.4f) < 1e-4f);
+    const std::vector<Bone> rig = bones(pool);
+    CHECK(rig.size() == 1);
+    CHECK(std::fabs(rig[0].to.x - 10.f) < 1e-3f);
+
+    bool rejected = false;
+    try {
+        pool.setPivot(pool.root(), joint);
+    } catch (const std::invalid_argument&) {
+        rejected = true;
+    }
+    CHECK(rejected);
+
+    NodePool skin;
+    const FrameId limb = skin.createFrame(skin.root());
+    FramePose bent;
+    bent.rotation = pi / 2.f;
+    skin.setPose(limb, bent);
+    const Vec2 rest{20.f, 0.f};
+    const BoneInfluence influence{limb, 80.f};
+    const std::vector<Vec2> deformed =
+        deformSkin(skin, std::span<const Vec2>(&rest, 1), std::span<const BoneInfluence>(&influence, 1));
+    CHECK(std::fabs(deformed[0].x) < 1e-2f);
+    CHECK(std::fabs(deformed[0].y - 20.f) < 1e-2f);
+
+    const char* json = R"({
+      "forma": 1,
+      "kind": "asset",
+      "root": "root",
+      "frames": [
+        {"id": "root", "t": [0, 0], "r": 0, "s": [1, 1]},
+        {"id": "knee", "parent": "root", "pivot": "j", "t": [10, 0], "r": 0, "s": [1, 1], "limit": [-10, 140]}
+      ],
+      "nodes": [{"id": "j", "frame": "root", "p": [10, 0]}],
+      "primitives": []
+    })";
+    const Document doc = documentFromJson(json);
+    const CompiledDocument compiled = compile(doc);
+    const FrameId knee = compiled.frames.at("knee");
+    CHECK(compiled.pool.hasLimits(knee));
+    CHECK(std::fabs(compiled.pool.limitMin(knee) * (180.f / pi) + 10.f) < 1e-2f);
+    CHECK(std::fabs(compiled.pool.limitMax(knee) * (180.f / pi) - 140.f) < 1e-2f);
+    CHECK(std::fabs(compiled.pool.frameWorld(knee).apply({0.f, 0.f}).x - 10.f) < 1e-3f);
+    const Document round = documentFromJson(toJson(doc));
+    CHECK(round.frames[1].pivot == "j");
+    CHECK(round.frames[1].hasLimit);
+    CHECK(std::fabs(round.frames[1].limitMax * (180.f / pi) - 140.f) < 1e-2f);
+}
+
 }  // namespace
 
 int main() {
@@ -247,6 +317,7 @@ int main() {
     CHECK(ribbon.vertices.size() >= 6);
 
     hierarchyTests();
+    skeletonTests();
 
     // Box2D: a circle dropped onto a ground chain comes to rest on it.
     PhysicsScale scale;

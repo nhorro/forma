@@ -13,6 +13,8 @@ SFML and Box2D are adapters. They are not the model.
 | Paths | `Polyline`, centripetal `CatmullRom` |
 | Fills | `Polygon` (screen-space counter-clockwise), `Circle` |
 | `Document` | JSON (`forma` 1) for creatures and levels. Degrees on disk, radians in the API. |
+| Joint | Optional pivot node on a child frame, plus a hinge limit relative to the rest angle. |
+| `deformSkin` | Soft bake from bone influence radii. Parented shapes do not use it. |
 | Sampling | Chord-error evaluation into world-space `Polyline2` / `Polygon2` |
 | `clipper_ops` | Union, difference, intersection, inflate (Clipper2 2.0) |
 | `mesh` | Fill and thick stroke as triangles. Strokes are ribbons, because SFML 3 has no quad primitive. |
@@ -38,11 +40,11 @@ cmake --build build
 ./build/forma_editor examples/level.json
 ```
 
-`forma_editor --asset examples/face.json` opens a creature with the origin centered. Without a path it starts a 1280×720 world. Ctrl+S (or S) writes the JSON.
+`forma_editor examples/tentacle.json` opens the chain. `forma_editor examples/human.json` opens the ragdoll. Both are assets, so the origin starts in the center of the view. The panel is Dear ImGui.
 
-The left column is the frame tree. New shapes are parented to the selected frame, in that frame's local space. Drag a frame origin to move the whole part. `1`–`6` pick select, circle, polygon, line, spline, frame. Enter finishes a multi-point shape. N renames the selected frame. Delete removes the selection. L flips a shape between the `draw` and `solid` layers. Drag the canvas corner to set the size. Wheel zooms, middle mouse pans.
+Bind mode edits the rest pose, the shapes, and the hinges. Pose mode bends a bone by dragging it; the arc is the angular limit. Save always writes the bind pose. "Use pose as bind" copies the preview back into the rest pose, and the limits stay relative to that new rest.
 
-`examples/level.json` places `examples/face.json`. An instance is a frame; the creature file stays the source.
+A shape lives on a frame, so it rotates with that bone and cannot span two bones. A joint is optional: the child frame's pivot is a node in the parent, and the hinge limit is degrees relative to the rest angle. Skin radius is not used by those shapes. `deformSkin` reads it when you want a soft outline instead of a rigid part.
 
 ## Hierarchy
 

@@ -1,0 +1,42 @@
+{
+  "forma": 1,
+  "kind": "asset",
+  "name": "tentacle",
+  "root": "root",
+  "frames": [
+    {"id": "root", "t": [0, 0], "r": 0, "s": [1, 1]},
+    {"id": "s1", "parent": "root", "pivot": "j1", "t": [56, 0], "r": 0, "s": [1, 1], "limit": [-32, 32]},
+    {"id": "s2", "parent": "s1", "pivot": "j2", "t": [56, 0], "r": 0, "s": [1, 1], "limit": [-32, 32]},
+    {"id": "s3", "parent": "s2", "pivot": "j3", "t": [56, 0], "r": 0, "s": [1, 1], "limit": [-32, 32]},
+    {"id": "s4", "parent": "s3", "pivot": "j4", "t": [56, 0], "r": 0, "s": [1, 1], "limit": [-32, 32]},
+    {"id": "s5", "parent": "s4", "pivot": "j5", "t": [56, 0], "r": 0, "s": [1, 1], "limit": [-32, 32]},
+    {"id": "s6", "parent": "s5", "pivot": "j6", "t": [56, 0], "r": 0, "s": [1, 1], "limit": [-32, 32]}
+  ],
+  "nodes": [
+    {"id": "j1", "frame": "root", "p": [56, 0]},
+    {"id": "c0", "frame": "root", "p": [28, 0]},
+    {"id": "j2", "frame": "s1", "p": [56, 0]},
+    {"id": "c1", "frame": "s1", "p": [28, 0]},
+    {"id": "j3", "frame": "s2", "p": [56, 0]},
+    {"id": "c2", "frame": "s2", "p": [28, 0]},
+    {"id": "j4", "frame": "s3", "p": [56, 0]},
+    {"id": "c3", "frame": "s3", "p": [28, 0]},
+    {"id": "j5", "frame": "s4", "p": [56, 0]},
+    {"id": "c4", "frame": "s4", "p": [28, 0]},
+    {"id": "j6", "frame": "s5", "p": [56, 0]},
+    {"id": "c5", "frame": "s5", "p": [28, 0]},
+    {"id": "tip", "frame": "s6", "p": [18, 0]}
+  ],
+  "primitives": [
+    {"id": "body0", "kind": "circle", "center": "c0", "radius": 16, "fill": "#1e4d3c", "stroke": {"width": 2, "color": "#1c1915", "cap": "round", "join": "round"}},
+    {"id": "body1", "kind": "circle", "center": "c1", "radius": 15, "fill": "#1e4d3c", "stroke": {"width": 2, "color": "#1c1915", "cap": "round", "join": "round"}},
+    {"id": "body2", "kind": "circle", "center": "c2", "radius": 14, "fill": "#1e4d3c", "stroke": {"width": 2, "color": "#1c1915", "cap": "round", "join": "round"}},
+    {"id": "body3", "kind": "circle", "center": "c3", "radius": 13, "fill": "#1e4d3c", "stroke": {"width": 2, "color": "#1c1915", "cap": "round", "join": "round"}},
+    {"id": "body4", "kind": "circle", "center": "c4", "radius": 12, "fill": "#1e4d3c", "stroke": {"width": 2, "color": "#1c1915", "cap": "round", "join": "round"}},
+    {"id": "body5", "kind": "circle", "center": "c5", "radius": 11, "fill": "#1e4d3c", "stroke": {"width": 2, "color": "#1c1915", "cap": "round", "join": "round"}},
+    {"id": "body6", "kind": "circle", "center": "tip", "radius": 9, "fill": "#c4491d", "stroke": {"width": 2, "color": "#1c1915", "cap": "round", "join": "round"}}
+  ],
+  "layers": [
+    {"id": "draw", "order": 0, "role": "visual"}
+  ]
+}

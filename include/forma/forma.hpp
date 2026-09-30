@@ -11,4 +11,5 @@
 #include "forma/node_pool.hpp"
 #include "forma/predicates.hpp"
 #include "forma/sample.hpp"
+#include "forma/skeleton.hpp"
 #include "forma/vec2.hpp"

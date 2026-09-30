@@ -699,6 +699,23 @@ void compileInto(const Document& document, NodePool& pool, FrameId attachUnder, 
         return it->second;
     };
 
+    for (const FrameDesc& frame : document.frames) {
+        const auto found = local.find(frame.id);
+        if (found == local.end()) {
+            continue;
+        }
+        if (!frame.pivot.empty()) {
+            try {
+                pool.setPivot(found->second, resolveNode(frame.pivot));
+            } catch (const std::invalid_argument& error) {
+                throw std::runtime_error("frame '" + frame.id + "': " + error.what());
+            }
+        }
+        if (frame.hasLimit) {
+            pool.setLimits(found->second, true, frame.limitMin, frame.limitMax);
+        }
+    }
+
     for (const PrimitiveDesc& primitive : document.primitives) {
         if (primitive.id.empty()) {
             throw std::runtime_error("primitive is missing an id");
@@ -865,8 +882,24 @@ Document documentFromJson(std::string_view json) {
                     frame.parent = str(*parent, parser.line);
                 }
             }
+            if (const Val* pivot = item.find("pivot")) {
+                if (pivot->type != Val::Type::Null) {
+                    frame.pivot = str(*pivot, parser.line);
+                }
+            }
             frame.pose = poseOf(item, parser.line);
             inheritOf(item, frame.inheritTranslation, frame.inheritRotation, frame.inheritScale);
+            if (const Val* limit = item.find("limit")) {
+                if (limit->type != Val::Type::Null) {
+                    const Vec2 range = vec2Of(*limit, parser.line);
+                    frame.hasLimit = true;
+                    frame.limitMin = range.x * (kPi / 180.f);
+                    frame.limitMax = range.y * (kPi / 180.f);
+                }
+            }
+            if (const Val* influence = item.find("influence")) {
+                frame.influence = num(*influence, parser.line);
+            }
             document.frames.push_back(std::move(frame));
         }
     }
@@ -1019,6 +1052,22 @@ std::string toJson(const Document& document) {
         }
         w.raw(", ");
         writePoseFields(w, frame.pose, frame.inheritTranslation, frame.inheritRotation, frame.inheritScale, true);
+        if (!frame.pivot.empty()) {
+            w.raw(", \"pivot\": \"");
+            w.raw(escape(frame.pivot));
+            w.raw("\"");
+        }
+        if (frame.hasLimit) {
+            w.raw(", \"limit\": [");
+            w.raw(numStr(frame.limitMin * (180.f / kPi)));
+            w.raw(", ");
+            w.raw(numStr(frame.limitMax * (180.f / kPi)));
+            w.raw("]");
+        }
+        if (frame.influence > 0.f) {
+            w.raw(", \"influence\": ");
+            w.raw(numStr(frame.influence));
+        }
         w.raw("}");
         if (i + 1 < document.frames.size()) {
             w.raw(",");

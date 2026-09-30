@@ -29,6 +29,15 @@ struct FrameDesc {
     bool inheritTranslation = true;
     bool inheritRotation = true;
     bool inheritScale = true;
+    /// Node in the parent frame. Empty means the translation above is the pivot.
+    std::string pivot;
+    bool hasLimit = false;
+    /// Radians, relative to the rest rotation. The file stores degrees.
+    float limitMin = 0.f;
+    float limitMax = 0.f;
+    /// Skin falloff around this bone. Zero means the bone does not deform skin.
+    /// Parented shapes ignore it; they move because they live in the frame.
+    float influence = 0.f;
 };
 
 struct NodeDesc {

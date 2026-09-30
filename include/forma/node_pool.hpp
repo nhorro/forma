@@ -49,6 +49,21 @@ public:
     void placePose(FrameId frame, const FramePose& pose);
     void setInherit(FrameId frame, bool translation, bool rotation, bool scale);
 
+    /// The pivot node lives in the parent frame. While it is set, the child's
+    /// translation follows that node instead of `pose.translation`.
+    void setPivot(FrameId frame, NodeId pivot);
+    NodeId pivot(FrameId frame) const;
+
+    /// Limits are radians relative to the rest rotation. `setPose` does not clamp.
+    void setLimits(FrameId frame, bool enabled, float minRadians, float maxRadians);
+    bool hasLimits(FrameId frame) const;
+    float limitMin(FrameId frame) const;
+    float limitMax(FrameId frame) const;
+    void clampToLimits(FrameId frame);
+
+    /// World matrix of the bind pose. Pivot nodes contribute their rest position.
+    Affine frameBind(FrameId frame) const;
+
     FramePose pose(FrameId frame) const;
     FramePose restPose(FrameId frame) const;
     FrameId parent(FrameId frame) const;
@@ -87,6 +102,10 @@ private:
         bool inheritTranslation = true;
         bool inheritRotation = true;
         bool inheritScale = true;
+        NodeId pivot{};
+        bool limitEnabled = false;
+        float limitMin = 0.f;
+        float limitMax = 0.f;
         uint32_t generation = 1;
     };
 
@@ -103,6 +122,8 @@ private:
     Node& at(NodeId id);
     const Node& at(NodeId id) const;
     void touch(FrameId id);
+    void touchPivots(NodeId id);
+    FramePose livePose(const FrameRec& frame) const;
     const WorldCache& cached(FrameId id, int depth) const;
     static WorldCache compose(const WorldCache& parent, const FrameRec& frame);
 

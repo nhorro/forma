@@ -1,5 +1,8 @@
 #include "forma/node_pool.hpp"
 
+#include <algorithm>
+#include <cmath>
+
 namespace forma {
 namespace {
 
@@ -69,6 +72,9 @@ void NodePool::reparent(FrameId frame, FrameId parent) {
         return;
     }
     rec.parent = parent;
+    if (rec.pivot.valid() && this->frame(rec.pivot) != parent) {
+        rec.pivot = {};
+    }
     touch(frame);
 }
 
@@ -110,6 +116,90 @@ bool NodePool::inheritsTranslation(FrameId id) const { return atFrame(id).inheri
 bool NodePool::inheritsRotation(FrameId id) const { return atFrame(id).inheritRotation; }
 bool NodePool::inheritsScale(FrameId id) const { return atFrame(id).inheritScale; }
 
+void NodePool::setPivot(FrameId id, NodeId pivot) {
+    FrameRec& frame = atFrame(id);
+    if (pivot.valid()) {
+        if (id == root_) {
+            throw std::invalid_argument("the root frame cannot have a pivot");
+        }
+        if (this->frame(pivot) != frame.parent) {
+            throw std::invalid_argument("pivot node must live in the parent frame");
+        }
+    }
+    if (frame.pivot == pivot) {
+        return;
+    }
+    frame.pivot = pivot;
+    touch(id);
+}
+
+NodeId NodePool::pivot(FrameId id) const { return atFrame(id).pivot; }
+
+void NodePool::setLimits(FrameId id, bool enabled, float minRadians, float maxRadians) {
+    if (minRadians > maxRadians) {
+        std::swap(minRadians, maxRadians);
+    }
+    FrameRec& frame = atFrame(id);
+    if (frame.limitEnabled == enabled && frame.limitMin == minRadians && frame.limitMax == maxRadians) {
+        return;
+    }
+    frame.limitEnabled = enabled;
+    frame.limitMin = minRadians;
+    frame.limitMax = maxRadians;
+    touch(id);
+}
+
+bool NodePool::hasLimits(FrameId id) const { return atFrame(id).limitEnabled; }
+float NodePool::limitMin(FrameId id) const { return atFrame(id).limitMin; }
+float NodePool::limitMax(FrameId id) const { return atFrame(id).limitMax; }
+
+void NodePool::clampToLimits(FrameId id) {
+    FrameRec& frame = atFrame(id);
+    if (!frame.limitEnabled) {
+        return;
+    }
+    const float rel = frame.pose.rotation - frame.rest.rotation;
+    const float clamped = std::clamp(rel, frame.limitMin, frame.limitMax);
+    if (clamped == rel) {
+        return;
+    }
+    FramePose next = frame.pose;
+    next.rotation = frame.rest.rotation + clamped;
+    setPose(id, next);
+}
+
+Affine NodePool::frameBind(FrameId id) const {
+    std::vector<FrameId> chain;
+    for (FrameId cursor = id; cursor.valid(); cursor = atFrame(cursor).parent) {
+        chain.push_back(cursor);
+        if (chain.size() > 64) {
+            throw std::invalid_argument("frame cycle");
+        }
+    }
+    std::reverse(chain.begin(), chain.end());
+    WorldCache acc;
+    bool first = true;
+    for (FrameId frameId : chain) {
+        const FrameRec& frame = atFrame(frameId);
+        FramePose rest = frame.rest;
+        if (frame.pivot.valid()) {
+            rest.translation = at(frame.pivot).rest;
+        }
+        if (first) {
+            acc.world = trs(rest);
+            acc.translation = rest.translation;
+            acc.rotation = rest.rotation;
+            acc.scale = rest.scale;
+            first = false;
+            continue;
+        }
+        FrameRec posed = frame;
+        posed.pose = rest;
+        acc = compose(acc, posed);
+    }
+    return acc.world;
+}
+
 Affine NodePool::frameWorld(FrameId id) const { return cached(id, 0).world; }
 
 Vec2 NodePool::toLocal(FrameId id, Vec2 world) const {
@@ -137,6 +227,7 @@ void NodePool::set(NodeId id, Vec2 position) {
     Node& node = at(id);
     node.position = position;
     ++node.generation;
+    touchPivots(id);
 }
 
 void NodePool::setRest(NodeId id, Vec2 rest) { at(id).rest = rest; }
@@ -146,6 +237,7 @@ void NodePool::place(NodeId id, Vec2 position) {
     node.position = position;
     node.rest = position;
     ++node.generation;
+    touchPivots(id);
 }
 
 Vec2 NodePool::get(NodeId id) const { return at(id).position; }
@@ -207,6 +299,27 @@ void NodePool::touch(FrameId id) {
     ++epoch_;
 }
 
+void NodePool::touchPivots(NodeId id) {
+    bool any = false;
+    for (FrameRec& frame : frames_) {
+        if (frame.pivot == id) {
+            ++frame.generation;
+            any = true;
+        }
+    }
+    if (any) {
+        ++epoch_;
+    }
+}
+
+FramePose NodePool::livePose(const FrameRec& frame) const {
+    FramePose pose = frame.pose;
+    if (frame.pivot.valid()) {
+        pose.translation = at(frame.pivot).position;
+    }
+    return pose;
+}
+
 const NodePool::WorldCache& NodePool::cached(FrameId id, int depth) const {
     if (depth > 64) {
         throw std::invalid_argument("frame cycle");
@@ -219,15 +332,17 @@ const NodePool::WorldCache& NodePool::cached(FrameId id, int depth) const {
     if (slot.epoch == epoch_) {
         return slot;
     }
+    FrameRec posed = frame;
+    posed.pose = livePose(frame);
     WorldCache built;
     if (!frame.parent.valid()) {
-        built.world = trs(frame.pose);
-        built.translation = frame.pose.translation;
-        built.rotation = frame.pose.rotation;
-        built.scale = frame.pose.scale;
+        built.world = trs(posed.pose);
+        built.translation = posed.pose.translation;
+        built.rotation = posed.pose.rotation;
+        built.scale = posed.pose.scale;
     } else {
         const WorldCache parent = cached(frame.parent, depth + 1);
-        built = compose(parent, frame);
+        built = compose(parent, posed);
     }
     built.epoch = epoch_;
     slot = built;
