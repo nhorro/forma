@@ -334,6 +334,51 @@ void backlogTests() {
         CHECK(fixture.ok);
     }
 
+    std::vector<Vec2> wheel;
+    for (int i = 0; i < 12; ++i) {
+        const float a = -static_cast<float>(i) * (2.f * pi / 12.f);
+        wheel.push_back({std::cos(a) * 40.f, std::sin(a) * 40.f});
+    }
+    const std::vector<std::vector<Vec2>> wheelParts = convexParts(wheel);
+    float wheelArea = 0.f;
+    CHECK(wheelParts.size() >= 2);
+    for (const std::vector<Vec2>& part : wheelParts) {
+        CHECK(static_cast<int>(part.size()) <= 8);
+        CHECK(isConvex(part));
+        wheelArea += std::fabs(signedArea(part));
+    }
+    CHECK(std::fabs(wheelArea - std::fabs(signedArea(wheel))) < 2.f);
+
+    const Vec2 level[] = {{0.f, 0.f}, {240.f, 0.f}, {240.f, 80.f}, {80.f, 80.f}, {80.f, 240.f}, {0.f, 240.f}};
+    b2WorldDef levelWorldDef = b2DefaultWorldDef();
+    levelWorldDef.gravity = {0.f, -10.f};
+    const b2WorldId levelWorld = b2CreateWorld(&levelWorldDef);
+    b2BodyDef groundDef = b2DefaultBodyDef();
+    groundDef.type = b2_staticBody;
+    const b2BodyId ground = b2CreateBody(levelWorld, &groundDef);
+    CHECK(attachConvexParts(ground, level, scale) >= 2);
+    auto drop = [&](Vec2 at) {
+        b2BodyDef bodyDef = b2DefaultBodyDef();
+        bodyDef.type = b2_dynamicBody;
+        bodyDef.position = toWorld(at, scale);
+        const b2BodyId body = b2CreateBody(levelWorld, &bodyDef);
+        b2ShapeDef shapeDef = b2DefaultShapeDef();
+        shapeDef.density = 1.f;
+        const b2Circle circle = buildCircle(10.f, scale);
+        b2CreateCircleShape(body, &shapeDef, &circle);
+        return body;
+    };
+    const b2BodyId inNotch = drop({160.f, 160.f});
+    const b2BodyId onSolid = drop({160.f, -40.f});
+    for (int step = 0; step < 180; ++step) {
+        b2World_Step(levelWorld, 1.f / 60.f, 4);
+    }
+    const Vec2 notchAt = toScreen(b2Body_GetPosition(inNotch), scale);
+    const Vec2 solidAt = toScreen(b2Body_GetPosition(onSolid), scale);
+    CHECK(notchAt.y > 280.f);
+    CHECK(std::fabs(solidAt.y + 10.f) < 8.f);
+    b2DestroyWorld(levelWorld);
+
     NodePool pool;
     const FrameId bone = pool.createFrame(pool.root());
     pool.setPivot(bone, pool.create({40.f, 0.f}));

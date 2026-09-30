@@ -48,7 +48,7 @@ cmake --build build
 
 `forma_walk` steps `examples/human.json` and `examples/quadruped.json`. The human's `swing` clip plays on the arms. `examples/soft.json` is a skinned outline: pose the chain in the editor and the body follows the bone radii instead of a parent frame.
 
-`convexParts` splits a concave level outline before `buildConvexParts` turns each piece into a fixture. `createRagdoll` hangs the same hinges on Box2D revolute joints. Forma angles are clockwise and Y-down, so the joint angles are negated.
+`attachConvexParts` splits a concave level outline onto one static body, so a notch is not filled by a hull. `createRagdoll` hangs the same hinges on Box2D revolute joints. Forma angles are clockwise and Y-down, so the joint angles are negated.
 
 `forma_editor examples/tentacle.json` opens the chain. `forma_editor examples/human.json` opens the ragdoll. Both are assets, so the origin starts in the center of the view. The panel is Dear ImGui.
 
@@ -99,7 +99,7 @@ docker run --rm -e DISPLAY -v /tmp/.X11-unix:/tmp/.X11-unix forma:24.04 \
 - An amber circle and a convex gem are real Box2D bodies. Their transforms are written back onto the nodes they own, and those nodes are what gets drawn.
 - Drag a body to move it. Space tosses the ball. R puts both bodies back.
 
-Coordinates in the node pool are pixels, Y down. The exporter divides by `pixelsPerMeter` (32) and flips Y. Box2D polygons have to be convex and have at most 8 vertices; concave input is replaced by its hull and reported as `simplified`. Open chains are one-sided, need 4 points, and do not collide on the first and last segment — `buildChainPoints` pads the ends and turns the front face to `ChainFront::PositiveY` so a ground catches bodies under the default gravity.
+Coordinates in the node pool are pixels, Y down. The exporter divides by `pixelsPerMeter` (32) and flips Y. A single dynamic fixture uses `buildConvexBody`, which replaces a concave outline with its hull. A level outline uses `attachConvexParts`: the same body gets one fixture per convex piece, at most 8 vertices each, and a notch stays empty. Open chains are one-sided, need 4 points, and do not collide on the first and last segment — `buildChainPoints` pads the ends and turns the front face to `ChainFront::PositiveY` so a ground catches bodies under the default gravity.
 
 ## What this version leaves out
 

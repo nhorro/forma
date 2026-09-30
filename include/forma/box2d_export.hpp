@@ -51,7 +51,12 @@ ConvexBody buildConvexBody(std::span<const Vec2> screenPoints, PhysicsScale scal
 b2Circle buildCircle(float radiusPixels, PhysicsScale scale);
 
 /// One fixture per convex part. Concave outlines keep their notches, up to 8 vertices each.
+/// Each part is its own body, centered on that part. For a static level, use `attachConvexParts`.
 std::vector<ConvexBody> buildConvexParts(std::span<const Vec2> screenPoints, PhysicsScale scale);
+
+/// Attach every convex part of a screen-space outline to one body, in that body's local frame.
+/// A concave level keeps its notches. Returns how many polygon shapes were created.
+int attachConvexParts(b2BodyId body, std::span<const Vec2> screenRing, PhysicsScale scale);
 
 struct BoneBody {
     FrameId frame{};

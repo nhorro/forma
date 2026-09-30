@@ -177,6 +177,38 @@ std::vector<ConvexBody> buildConvexParts(std::span<const Vec2> screenPoints, Phy
     return bodies;
 }
 
+int attachConvexParts(b2BodyId body, std::span<const Vec2> screenRing, PhysicsScale scale) {
+    if (!b2Body_IsValid(body)) {
+        return 0;
+    }
+    const b2Vec2 origin = b2Body_GetPosition(body);
+    const b2Rot rotation = b2Body_GetRotation(body);
+    b2ShapeDef shape = b2DefaultShapeDef();
+    shape.density = 0.f;
+    shape.material.friction = 0.8f;
+    int created = 0;
+    for (const std::vector<Vec2>& part : convexParts(screenRing)) {
+        std::vector<b2Vec2> local;
+        local.reserve(part.size());
+        for (Vec2 point : part) {
+            const b2Vec2 world = toWorld(point, scale);
+            const b2Vec2 delta{world.x - origin.x, world.y - origin.y};
+            local.push_back(b2InvRotateVector(rotation, delta));
+        }
+        if (static_cast<int>(local.size()) < 3) {
+            continue;
+        }
+        const b2Hull hull = b2ComputeHull(local.data(), static_cast<int>(local.size()));
+        if (hull.count < 3) {
+            continue;
+        }
+        const b2Polygon polygon = b2MakePolygon(&hull, 0.f);
+        b2CreatePolygonShape(body, &shape, &polygon);
+        ++created;
+    }
+    return created;
+}
+
 namespace {
 
 constexpr float kPi = 3.14159265358979323846f;
