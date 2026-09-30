@@ -15,6 +15,7 @@ SFML and Box2D are adapters. They are not the model.
 | `Document` | JSON (`forma` 1) for creatures and levels. Degrees on disk, radians in the API. |
 | Joint | Optional pivot node on a child frame, plus a hinge limit relative to the rest angle. |
 | `deformSkin` | Soft bake from bone influence radii. Parented shapes do not use it. |
+| `solveIk` | One limb. Two-bone chains are exact, with a pole so the knee stays put. Longer chains use FABRIK. |
 | Sampling | Chord-error evaluation into world-space `Polyline2` / `Polygon2` |
 | `clipper_ops` | Union, difference, intersection, inflate (Clipper2 2.0) |
 | `mesh` | Fill and thick stroke as triangles. Strokes are ribbons, because SFML 3 has no quad primitive. |
@@ -45,6 +46,8 @@ cmake --build build
 Bind mode edits the rest pose, the shapes, and the hinges. Pose mode bends a bone by dragging it; the arc is the angular limit. Save always writes the bind pose. "Use pose as bind" copies the preview back into the rest pose, and the limits stay relative to that new rest.
 
 A shape lives on a frame, so it rotates with that bone and cannot span two bones. A joint is optional: the child frame's pivot is a node in the parent, and the hinge limit is degrees relative to the rest angle. Skin radius is not used by those shapes. `deformSkin` reads it when you want a soft outline instead of a rigid part.
+
+In Pose mode, dragging a bone runs IK on that limb. The chain stops where the parent branches, so a hand drag solves the arm and a foot drag solves the leg. The pole is taken from the hinge: a knee limited to one side bends that way. `solveIk` is the same call you make at runtime, once per limb, after the body is placed. It only writes rotations.
 
 ## Hierarchy
 

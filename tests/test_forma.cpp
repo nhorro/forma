@@ -242,6 +242,67 @@ void skeletonTests() {
     CHECK(std::fabs(round.frames[1].limitMax * (180.f / pi) - 140.f) < 1e-2f);
 }
 
+void ikTests() {
+    using namespace forma;
+    const float pi = 3.1415926535f;
+    NodePool pool;
+    const NodeId shoulder = pool.create({0.f, 0.f});
+    const FrameId upper = pool.createFrame(pool.root());
+    pool.setPivot(upper, shoulder);
+    const NodeId elbow = pool.create(upper, {40.f, 0.f});
+    const FrameId lower = pool.createFrame(upper);
+    pool.setPivot(lower, elbow);
+    const FrameId chain[] = {upper, lower};
+    const Vec2 tipLocal{40.f, 0.f};
+
+    IkOptions down;
+    down.pole = Vec2{0.f, 20.f};
+    const IkResult reached = solveIk(pool, chain, tipLocal, {40.f, 0.f}, down);
+    CHECK(reached.reached);
+    CHECK(reached.error < 0.1f);
+    const Vec2 kneeDown = pool.frameWorld(lower).apply({0.f, 0.f});
+    CHECK(kneeDown.y > 1.f);
+
+    IkOptions up;
+    up.pole = Vec2{0.f, -20.f};
+    const IkResult other = solveIk(pool, chain, tipLocal, {40.f, 0.f}, up);
+    CHECK(other.reached);
+    const Vec2 kneeUp = pool.frameWorld(lower).apply({0.f, 0.f});
+    CHECK(kneeUp.y < -1.f);
+    CHECK(std::fabs(pool.frameWorld(upper).apply({0.f, 0.f}).x) < 1e-3f);
+
+    pool.setLimits(lower, true, 0.f, 10.f * pi / 180.f);
+    const IkResult blocked = solveIk(pool, chain, tipLocal, {0.f, 70.f});
+    CHECK(!blocked.reached);
+    const float knee = pool.pose(lower).rotation - pool.restPose(lower).rotation;
+    CHECK(knee >= -1e-3f);
+    CHECK(knee <= 10.f * pi / 180.f + 1e-3f);
+
+    NodePool tail;
+    FrameId previous = tail.root();
+    FrameId bones[4];
+    for (int i = 0; i < 4; ++i) {
+        const NodeId joint = tail.create(previous, {20.f, 0.f});
+        bones[i] = tail.createFrame(previous);
+        tail.setPivot(bones[i], joint);
+        previous = bones[i];
+    }
+    const IkResult curled = solveIk(tail, bones, {20.f, 0.f}, {30.f, 40.f});
+    CHECK(curled.reached);
+    CHECK(std::fabs(tail.frameWorld(bones[0]).apply({0.f, 0.f}).x - 20.f) < 1e-2f);
+    for (FrameId bone : bones) {
+        tail.setLimits(bone, true, -40.f * pi / 180.f, 40.f * pi / 180.f);
+    }
+    tail.resetToRest();
+    const IkResult limited = solveIk(tail, bones, {20.f, 0.f}, {30.f, 40.f});
+    CHECK(!limited.reached);
+    for (FrameId bone : bones) {
+        const float rel = tail.pose(bone).rotation - tail.restPose(bone).rotation;
+        CHECK(rel >= -40.f * pi / 180.f - 1e-3f);
+        CHECK(rel <= 40.f * pi / 180.f + 1e-3f);
+    }
+}
+
 }  // namespace
 
 int main() {
@@ -318,6 +379,7 @@ int main() {
 
     hierarchyTests();
     skeletonTests();
+    ikTests();
 
     // Box2D: a circle dropped onto a ground chain comes to rest on it.
     PhysicsScale scale;

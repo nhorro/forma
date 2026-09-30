@@ -97,7 +97,60 @@ struct Editor {
     forma::Vec2 cam{0.f, 0.f};
     float zoom = 1.f;
     forma::Vec2 lastMouse{};
-    float lastPoseAngle = 0.f;
+    std::vector<forma::FrameId> ikChain;
+    forma::Vec2 ikTip{};
+
+    std::vector<forma::FrameId> childrenOf(forma::FrameId frame) const {
+        std::vector<forma::FrameId> children;
+        for (std::uint32_t i = 0; i < compiled.pool.frameCount(); ++i) {
+            const forma::FrameId candidate{i};
+            if (compiled.pool.parent(candidate) == frame) {
+                children.push_back(candidate);
+            }
+        }
+        return children;
+    }
+
+    forma::Vec2 tipOf(forma::FrameId frame) const {
+        forma::Vec2 best{};
+        float bestDistance = 0.f;
+        for (const auto& [id, node] : compiled.nodes) {
+            (void)id;
+            if (compiled.pool.frame(node) != frame) {
+                continue;
+            }
+            const forma::Vec2 local = compiled.pool.get(node);
+            const float span = forma::length(local);
+            if (span > bestDistance) {
+                bestDistance = span;
+                best = local;
+            }
+        }
+        return best;
+    }
+
+    void prepareIk(forma::FrameId selected) {
+        ikChain.clear();
+        ikTip = {};
+        forma::FrameId leaf = selected;
+        for (;;) {
+            const std::vector<forma::FrameId> children = childrenOf(leaf);
+            if (children.size() != 1) {
+                break;
+            }
+            leaf = children.front();
+        }
+        for (forma::FrameId cursor = leaf; cursor.valid() && cursor != compiled.pool.root();) {
+            ikChain.push_back(cursor);
+            const forma::FrameId parent = compiled.pool.parent(cursor);
+            if (childrenOf(parent).size() != 1) {
+                break;
+            }
+            cursor = parent;
+        }
+        std::reverse(ikChain.begin(), ikChain.end());
+        ikTip = childrenOf(leaf).empty() ? tipOf(leaf) : forma::Vec2{};
+    }
     bool cameraSet = false;
     bool asset = false;
     char pathBuffer[512] = "untitled.json";
@@ -446,18 +499,6 @@ struct Editor {
         return hit;
     }
 
-    float poseAngle(forma::Vec2 world) const {
-        const auto it = compiled.frames.find(selectedFrame);
-        if (it == compiled.frames.end()) return 0.f;
-        const forma::FrameId parent = compiled.pool.parent(it->second);
-        if (!parent.valid()) return 0.f;
-        const forma::Vec2 pivot = compiled.pool.frameWorld(it->second).apply({0.f, 0.f});
-        const forma::Vec2 local = compiled.pool.toLocal(parent, world);
-        const forma::Vec2 origin = compiled.pool.toLocal(parent, pivot);
-        const forma::Vec2 delta = local - origin;
-        return std::atan2(delta.y, delta.x);
-    }
-
     void onLeftDown(forma::Vec2 screen) {
         const forma::Vec2 world = screenToWorld(screen);
         if (doc.canvas) {
@@ -480,8 +521,12 @@ struct Editor {
             if (const auto bone = hitBone(world)) {
                 selectedFrame = *bone;
                 selectedNode.clear();
-                drag = Drag::Pose;
-                lastPoseAngle = poseAngle(world);
+                const auto it = compiled.frames.find(selectedFrame);
+                if (it != compiled.frames.end()) {
+                    prepareIk(it->second);
+                    drag = Editor::Drag::Pose;
+                    status = "IK follows the cursor. Hinges stay inside their limits.";
+                }
             }
             return;
         }
@@ -511,18 +556,13 @@ struct Editor {
             doc.canvas->height = std::max(32.f, world.y);
         } else if (drag == Drag::Circle) {
             updateCircle(world);
-        } else if (drag == Drag::Pose) {
-            const auto it = compiled.frames.find(selectedFrame);
-            if (it != compiled.frames.end()) {
-                const float angle = poseAngle(world);
-                float delta = angle - lastPoseAngle;
-                while (delta > kPi) delta -= 2.f * kPi;
-                while (delta < -kPi) delta += 2.f * kPi;
-                forma::FramePose pose = compiled.pool.pose(it->second);
-                pose.rotation += delta;
-                compiled.pool.setPose(it->second, pose);
-                compiled.pool.clampToLimits(it->second);
-                lastPoseAngle = angle;
+        } else if (drag == Drag::Pose && !ikChain.empty()) {
+            try {
+                forma::IkOptions options;
+                const forma::IkResult solved = forma::solveIk(compiled.pool, ikChain, ikTip, world, options);
+                status = solved.reached ? "IK reached the cursor" : "IK bent as far as the hinges allow";
+            } catch (const std::exception& error) {
+                status = error.what();
             }
         }
         lastMouse = screen;
@@ -759,7 +799,7 @@ struct Editor {
             if (!draft.empty() && ImGui::Button("Finish shape")) commitDraft();
             ImGui::TextDisabled("Click the canvas to place. Middle mouse pans, wheel zooms.");
         } else {
-            ImGui::TextDisabled("Drag a bone. The arc is the hinge limit.");
+            ImGui::TextDisabled("Drag a limb. The end follows the cursor, and the hinges stay inside their limits.");
         }
         if (ImGui::Shortcut(ImGuiMod_Ctrl | ImGuiKey_S)) save();
         if (!ImGui::GetIO().WantTextInput && ImGui::IsKeyPressed(ImGuiKey_Delete)) deleteSelection();

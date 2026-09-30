@@ -7,6 +7,7 @@
 #include "forma/clipper_ops.hpp"
 #include "forma/document.hpp"
 #include "forma/geometry.hpp"
+#include "forma/ik.hpp"
 #include "forma/mesh.hpp"
 #include "forma/node_pool.hpp"
 #include "forma/predicates.hpp"

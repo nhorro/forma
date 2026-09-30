@@ -58,6 +58,7 @@ add_library(forma
     src/node_pool.cpp
     src/document.cpp
     src/skeleton.cpp
+    src/ik.cpp
 )
 target_include_directories(forma PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")
 target_link_libraries(forma PUBLIC box2d::box2d Clipper2)
