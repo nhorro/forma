@@ -59,6 +59,23 @@ cmake -S . -B build \
   -DSFML_DIR=/path/to/sfml/lib/cmake/SFML
 ```
 
+## Docker
+
+The image builds SFML 3.1, then forma, and runs `forma_tests`. Pick the Ubuntu release with `UBUNTU`. 22.04 is the oldest one this file supports.
+
+```bash
+docker build --build-arg UBUNTU=22.04 -t forma:22.04 .
+docker build --build-arg UBUNTU=24.04 -t forma:24.04 .
+docker run --rm forma:24.04
+```
+
+The editor is in the image. On a machine with an X server:
+
+```bash
+docker run --rm -e DISPLAY -v /tmp/.X11-unix:/tmp/.X11-unix forma:24.04 \
+  /src/build/forma_editor examples/level.json
+```
+
 ## Playground
 
 `examples/playground.cpp` is the integration sample.
