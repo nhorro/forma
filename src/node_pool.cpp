@@ -1,0 +1,237 @@
+#include "forma/node_pool.hpp"
+
+namespace forma {
+namespace {
+
+bool samePose(const FramePose& a, const FramePose& b) {
+    return a.translation == b.translation && a.rotation == b.rotation && a.scale == b.scale;
+}
+
+}  // namespace
+
+NodePool::WorldCache NodePool::compose(const WorldCache& parent, const FrameRec& frame) {
+    NodePool::WorldCache out;
+    const FramePose& local = frame.pose;
+    out.rotation = local.rotation + (frame.inheritRotation ? parent.rotation : 0.f);
+    out.scale.x = frame.inheritScale ? parent.scale.x * local.scale.x : local.scale.x;
+    out.scale.y = frame.inheritScale ? parent.scale.y * local.scale.y : local.scale.y;
+    out.translation = frame.inheritTranslation ? parent.world.apply(local.translation) : local.translation;
+
+    Affine parentLinear = parent.world;
+    parentLinear.tx = 0.f;
+    parentLinear.ty = 0.f;
+    // Dropping a channel rebuilds the parent from the accumulated TRS, which
+    // discards shear. The default path (every channel inherited) keeps the real matrix.
+    if (!frame.inheritRotation || !frame.inheritScale) {
+        const float rot = frame.inheritRotation ? parent.rotation : 0.f;
+        const Vec2 scale = frame.inheritScale ? parent.scale : Vec2{1.f, 1.f};
+        parentLinear = linearRS(rot, scale);
+    }
+    out.world = mul(parentLinear, linearRS(local.rotation, local.scale));
+    out.world.tx = out.translation.x;
+    out.world.ty = out.translation.y;
+    return out;
+}
+
+NodePool::NodePool() {
+    FrameRec root;
+    root.pose.scale = {1.f, 1.f};
+    root.rest.scale = {1.f, 1.f};
+    root.generation = 1;
+    frames_.push_back(root);
+    root_ = FrameId{0};
+}
+
+FrameId NodePool::createFrame(FrameId parent) {
+    atFrame(parent);
+    FrameRec frame;
+    frame.parent = parent;
+    frame.pose.scale = {1.f, 1.f};
+    frame.rest.scale = {1.f, 1.f};
+    frames_.push_back(frame);
+    ++epoch_;
+    return FrameId{static_cast<uint32_t>(frames_.size() - 1)};
+}
+
+void NodePool::reparent(FrameId frame, FrameId parent) {
+    if (frame == root_) {
+        throw std::invalid_argument("cannot reparent the root frame");
+    }
+    atFrame(frame);
+    atFrame(parent);
+    for (FrameId cursor = parent; cursor.valid(); cursor = frames_[cursor.value].parent) {
+        if (cursor == frame) {
+            throw std::invalid_argument("frame cycle");
+        }
+    }
+    FrameRec& rec = atFrame(frame);
+    if (rec.parent == parent) {
+        return;
+    }
+    rec.parent = parent;
+    touch(frame);
+}
+
+void NodePool::setPose(FrameId id, const FramePose& pose) {
+    FrameRec& frame = atFrame(id);
+    if (samePose(frame.pose, pose)) {
+        return;
+    }
+    frame.pose = pose;
+    touch(id);
+}
+
+void NodePool::placePose(FrameId id, const FramePose& pose) {
+    FrameRec& frame = atFrame(id);
+    const bool changed = !samePose(frame.pose, pose) || !samePose(frame.rest, pose);
+    frame.pose = pose;
+    frame.rest = pose;
+    if (changed) {
+        touch(id);
+    }
+}
+
+void NodePool::setInherit(FrameId id, bool translation, bool rotation, bool scale) {
+    FrameRec& frame = atFrame(id);
+    if (frame.inheritTranslation == translation && frame.inheritRotation == rotation && frame.inheritScale == scale) {
+        return;
+    }
+    frame.inheritTranslation = translation;
+    frame.inheritRotation = rotation;
+    frame.inheritScale = scale;
+    touch(id);
+}
+
+FramePose NodePool::pose(FrameId id) const { return atFrame(id).pose; }
+FramePose NodePool::restPose(FrameId id) const { return atFrame(id).rest; }
+FrameId NodePool::parent(FrameId id) const { return atFrame(id).parent; }
+uint32_t NodePool::generation(FrameId id) const { return atFrame(id).generation; }
+bool NodePool::inheritsTranslation(FrameId id) const { return atFrame(id).inheritTranslation; }
+bool NodePool::inheritsRotation(FrameId id) const { return atFrame(id).inheritRotation; }
+bool NodePool::inheritsScale(FrameId id) const { return atFrame(id).inheritScale; }
+
+Affine NodePool::frameWorld(FrameId id) const { return cached(id, 0).world; }
+
+Vec2 NodePool::toLocal(FrameId id, Vec2 world) const {
+    Affine inv;
+    if (!invert(frameWorld(id), inv)) {
+        return {};
+    }
+    return inv.apply(world);
+}
+
+NodeId NodePool::create(Vec2 position) { return create(root_, position); }
+
+NodeId NodePool::create(FrameId frame, Vec2 position) {
+    atFrame(frame);
+    Node node;
+    node.position = position;
+    node.rest = position;
+    node.generation = 1;
+    node.frame = frame;
+    nodes_.push_back(node);
+    return NodeId{static_cast<uint32_t>(nodes_.size() - 1)};
+}
+
+void NodePool::set(NodeId id, Vec2 position) {
+    Node& node = at(id);
+    node.position = position;
+    ++node.generation;
+}
+
+void NodePool::setRest(NodeId id, Vec2 rest) { at(id).rest = rest; }
+
+void NodePool::place(NodeId id, Vec2 position) {
+    Node& node = at(id);
+    node.position = position;
+    node.rest = position;
+    ++node.generation;
+}
+
+Vec2 NodePool::get(NodeId id) const { return at(id).position; }
+Vec2 NodePool::rest(NodeId id) const { return at(id).rest; }
+FrameId NodePool::frame(NodeId id) const { return at(id).frame; }
+uint32_t NodePool::generation(NodeId id) const { return at(id).generation; }
+
+Vec2 NodePool::worldPosition(NodeId id) const {
+    const Node& node = at(id);
+    return cached(node.frame, 0).world.apply(node.position);
+}
+
+void NodePool::resetToRest() {
+    for (FrameRec& frame : frames_) {
+        if (!samePose(frame.pose, frame.rest)) {
+            frame.pose = frame.rest;
+            ++frame.generation;
+        }
+    }
+    for (Node& node : nodes_) {
+        if (node.position != node.rest) {
+            node.position = node.rest;
+            ++node.generation;
+        }
+    }
+    ++epoch_;
+}
+
+NodePool::FrameRec& NodePool::atFrame(FrameId id) {
+    if (!id.valid() || id.value >= frames_.size()) {
+        throw std::out_of_range("forma::FrameId");
+    }
+    return frames_[id.value];
+}
+
+const NodePool::FrameRec& NodePool::atFrame(FrameId id) const {
+    if (!id.valid() || id.value >= frames_.size()) {
+        throw std::out_of_range("forma::FrameId");
+    }
+    return frames_[id.value];
+}
+
+Node& NodePool::at(NodeId id) {
+    if (!id.valid() || id.value >= nodes_.size()) {
+        throw std::out_of_range("forma::NodeId");
+    }
+    return nodes_[id.value];
+}
+
+const Node& NodePool::at(NodeId id) const {
+    if (!id.valid() || id.value >= nodes_.size()) {
+        throw std::out_of_range("forma::NodeId");
+    }
+    return nodes_[id.value];
+}
+
+void NodePool::touch(FrameId id) {
+    ++atFrame(id).generation;
+    ++epoch_;
+}
+
+const NodePool::WorldCache& NodePool::cached(FrameId id, int depth) const {
+    if (depth > 64) {
+        throw std::invalid_argument("frame cycle");
+    }
+    const FrameRec& frame = atFrame(id);
+    if (cache_.size() != frames_.size()) {
+        cache_.resize(frames_.size());
+    }
+    WorldCache& slot = cache_[id.value];
+    if (slot.epoch == epoch_) {
+        return slot;
+    }
+    WorldCache built;
+    if (!frame.parent.valid()) {
+        built.world = trs(frame.pose);
+        built.translation = frame.pose.translation;
+        built.rotation = frame.pose.rotation;
+        built.scale = frame.pose.scale;
+    } else {
+        const WorldCache parent = cached(frame.parent, depth + 1);
+        built = compose(parent, frame);
+    }
+    built.epoch = epoch_;
+    slot = built;
+    return cache_[id.value];
+}
+
+}  // namespace forma

@@ -5,6 +5,7 @@
 //   #include "forma/box2d_export.hpp"
 
 #include "forma/clipper_ops.hpp"
+#include "forma/document.hpp"
 #include "forma/geometry.hpp"
 #include "forma/mesh.hpp"
 #include "forma/node_pool.hpp"

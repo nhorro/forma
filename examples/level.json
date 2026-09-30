@@ -1,0 +1,27 @@
+{
+  "forma": 1,
+  "kind": "world",
+  "name": "level",
+  "root": "root",
+  "canvas": {"width": 960, "height": 540},
+  "frames": [
+    {"id": "root", "t": [0, 0], "r": 0, "s": [1, 1]},
+    {"id": "ground", "parent": "root", "t": [0, 400], "r": 0, "s": [1, 1]}
+  ],
+  "nodes": [
+    {"id": "g0", "frame": "ground", "p": [40, 30]},
+    {"id": "g1", "frame": "ground", "p": [280, 0]},
+    {"id": "g2", "frame": "ground", "p": [620, 24]},
+    {"id": "g3", "frame": "ground", "p": [920, -8]}
+  ],
+  "primitives": [
+    {"id": "ground.line", "kind": "polyline", "nodes": ["g0", "g1", "g2", "g3"], "stroke": {"width": 4, "color": "#1e4d3c", "cap": "round", "join": "round"}, "layer": "solid"}
+  ],
+  "instances": [
+    {"id": "face", "asset": "face.json", "parent": "root", "t": [480, 250], "r": 0, "s": [1, 1]}
+  ],
+  "layers": [
+    {"id": "draw", "order": 0, "role": "visual"},
+    {"id": "solid", "order": 1, "role": "collision"}
+  ]
+}

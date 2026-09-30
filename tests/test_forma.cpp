@@ -4,6 +4,7 @@
 #include <cmath>
 #include <iostream>
 #include <span>
+#include <stdexcept>
 #include <string>
 
 namespace {
@@ -35,6 +36,140 @@ float totalArea(const std::vector<forma::Polygon2>& shapes) {
         }
     }
     return area;
+}
+
+bool threwInvalid(const auto& fn) {
+    try {
+        fn();
+    } catch (const std::invalid_argument&) {
+        return true;
+    }
+    return false;
+}
+
+void hierarchyTests() {
+    using namespace forma;
+    const float pi = 3.1415926535f;
+
+    {
+        NodePool pool;
+        FramePose squash;
+        squash.scale = {2.f, 1.f};
+        pool.placePose(pool.root(), squash);
+        const FrameId eye = pool.createFrame(pool.root());
+        FramePose tilt;
+        tilt.rotation = pi / 2.f;
+        pool.placePose(eye, tilt);
+        const NodeId node = pool.create(eye, {1.f, 0.f});
+        const Vec2 world = pool.worldPosition(node);
+        // Parent scale applies in the parent axes, after the child's rotation.
+        CHECK(std::fabs(world.x) < 1e-3f);
+        CHECK(std::fabs(world.y - 1.f) < 1e-3f);
+    }
+
+    {
+        NodePool pool;
+        FramePose face;
+        face.rotation = pi / 2.f;
+        pool.placePose(pool.root(), face);
+        const FrameId eye = pool.createFrame(pool.root());
+        pool.setInherit(eye, true, false, true);
+        FramePose place;
+        place.translation = {10.f, 0.f};
+        pool.placePose(eye, place);
+        const NodeId pupil = pool.create(eye, {3.f, 0.f});
+        const Vec2 world = pool.worldPosition(pupil);
+        CHECK(std::fabs(world.x - 3.f) < 1e-3f);
+        CHECK(std::fabs(world.y - 10.f) < 1e-3f);
+        const uint64_t before = stamp(pool, std::span<const NodeId>(&pupil, 1));
+        FramePose nudged = pool.pose(pool.root());
+        nudged.translation = {4.f, 0.f};
+        pool.setPose(pool.root(), nudged);
+        CHECK(stamp(pool, std::span<const NodeId>(&pupil, 1)) != before);
+    }
+
+    {
+        NodePool pool;
+        const FrameId child = pool.createFrame(pool.root());
+        FramePose pose;
+        pose.translation = {30.f, 40.f};
+        pool.placePose(child, pose);
+        const NodeId center = pool.create(child, {0.f, 0.f});
+        const Polygon2 disk = sample(pool, Circle{center, 10.f}, 0.5f);
+        for (Vec2 p : disk.outer.pts) {
+            CHECK(std::fabs(distance(p, {30.f, 40.f}) - 10.f) < 0.05f);
+        }
+        const FrameId other = pool.createFrame(pool.root());
+        const NodeId a = pool.create(child, {0.f, 0.f});
+        const NodeId b = pool.create(other, {5.f, 0.f});
+        Polyline line;
+        line.nodes = {a, b};
+        CHECK(threwInvalid([&] { resolve(pool, line); }));
+        const FrameId grand = pool.createFrame(child);
+        CHECK(threwInvalid([&] { pool.reparent(child, grand); }));
+        const Vec2 back = pool.toLocal(child, pool.frameWorld(child).apply({3.f, -2.f}));
+        CHECK(std::fabs(back.x - 3.f) < 1e-3f);
+        CHECK(std::fabs(back.y + 2.f) < 1e-3f);
+    }
+
+    const char* json = R"({
+      "forma": 1,
+      "kind": "asset",
+      "name": "face",
+      "root": "face",
+      "frames": [
+        {"id": "face", "t": [0, 0], "r": 90, "s": [1, 1]},
+        {"id": "eye", "parent": "face", "t": [10, 0], "r": 0, "s": [1, 1],
+         "inherit": {"t": true, "r": false, "s": true}}
+      ],
+      "nodes": [{"id": "pupil", "frame": "eye", "p": [3, 0]}],
+      "primitives": [
+        {"id": "pupil.fill", "kind": "circle", "center": "pupil", "radius": 2, "fill": "#1c1915"}
+      ]
+    })";
+    Document face = documentFromJson(json);
+    CompiledDocument compiled = compile(face);
+    const Vec2 pupil = compiled.pool.worldPosition(compiled.nodes.at("pupil"));
+    CHECK(std::fabs(pupil.x - 3.f) < 1e-2f);
+    CHECK(std::fabs(pupil.y - 10.f) < 1e-2f);
+    CHECK(!compiled.pool.inheritsRotation(compiled.frames.at("eye")));
+    compiled.pool.place(compiled.nodes.at("pupil"), {8.f, 1.f});
+    writePose(face, compiled);
+    CHECK(face.nodes[0].position.x == 8.f);
+    const Document round = documentFromJson(toJson(face));
+    const CompiledDocument again = compile(round);
+    CHECK(!again.pool.inheritsRotation(again.frames.at("eye")));
+    const Vec2 saved = again.pool.worldPosition(again.nodes.at("pupil"));
+    CHECK(std::fabs(saved.x - 8.f) < 1e-2f);
+    CHECK(std::fabs(saved.y - 11.f) < 1e-2f);
+
+    Document asset;
+    asset.kind = DocumentKind::Asset;
+    asset.root = "body";
+    asset.frames.push_back(FrameDesc{"body", "", {}, true, true, true});
+    asset.nodes.push_back(NodeDesc{"c", "body", {2.f, 0.f}});
+    Document level;
+    level.kind = DocumentKind::World;
+    level.root = "root";
+    level.frames.push_back(FrameDesc{"root", "", {}, true, true, true});
+    InstanceDesc mob;
+    mob.id = "mob";
+    mob.asset = "mob.json";
+    mob.parent = "root";
+    mob.pose.translation = {100.f, 40.f};
+    level.instances.push_back(mob);
+    const CompiledDocument placed = compile(level, [&](std::string_view) { return asset; });
+    const Vec2 grafted = placed.pool.worldPosition(placed.nodes.at("mob/c"));
+    CHECK(std::fabs(grafted.x - 102.f) < 1e-3f);
+    CHECK(std::fabs(grafted.y - 40.f) < 1e-3f);
+
+    bool bad = false;
+    try {
+        documentFromJson("{");
+    } catch (const std::runtime_error&) {
+        bad = true;
+    }
+    CHECK(bad);
 }
 
 }  // namespace
@@ -110,6 +245,8 @@ int main() {
     segment.pts = {{0.f, 0.f}, {100.f, 0.f}};
     const TriMesh ribbon = strokePolyline(segment, stroke);
     CHECK(ribbon.vertices.size() >= 6);
+
+    hierarchyTests();
 
     // Box2D: a circle dropped onto a ground chain comes to rest on it.
     PhysicsScale scale;

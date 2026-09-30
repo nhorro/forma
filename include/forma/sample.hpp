@@ -4,6 +4,8 @@
 
 namespace forma {
 
+/// World-space samples. Curves are evaluated in the node's frame, then transformed,
+/// so a parent squash does not resample the spline. Nodes of one primitive must share a frame.
 Polyline2 resolve(const NodePool& pool, const Polyline& line);
 Polyline2 sample(const NodePool& pool, const CatmullRom& curve, float chordError);
 Polygon2 sample(const NodePool& pool, const Circle& circle, float chordError);

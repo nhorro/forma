@@ -8,14 +8,17 @@ SFML and Box2D are adapters. They are not the model.
 
 | Layer | What it is |
 |---|---|
-| `NodePool` | Positions with stable `NodeId`s. Moving a node moves every primitive that references it. |
+| `NodePool` | Local positions with stable `NodeId`s, each owned by one frame. |
+| `Frame` | Parent transform. Children are frames, not shapes. Sample in local space, then transform. |
 | Paths | `Polyline`, centripetal `CatmullRom` |
 | Fills | `Polygon` (screen-space counter-clockwise), `Circle` |
-| Sampling | Chord-error evaluation into `Polyline2` / `Polygon2` |
+| `Document` | JSON (`forma` 1) for creatures and levels. Degrees on disk, radians in the API. |
+| Sampling | Chord-error evaluation into world-space `Polyline2` / `Polygon2` |
 | `clipper_ops` | Union, difference, intersection, inflate (Clipper2 2.0) |
 | `mesh` | Fill and thick stroke as triangles. Strokes are ribbons, because SFML 3 has no quad primitive. |
 | `sfml_draw` | `TriMesh` → `sf::VertexArray` |
 | `box2d_export` | Pixels, Y-down → meters, Y-up. Circles, convex polygons (≤ 8 vertices), open chains. |
+| `editor/` | SFML editor for that document. |
 
 The kernel headers do not include SFML. `box2d_export.hpp` does include Box2D, because the adapter's job is to speak that API.
 
@@ -25,14 +28,27 @@ Dependencies, fetched by CMake if you don't pass a path:
 
 - [Box2D 3.1](https://github.com/erincatto/box2d) (`v3.1.1`)
 - [Clipper2 2.0.1](https://github.com/AngusJohnson/Clipper2)
-- SFML 3.1, only for the playground (`SFML_DIR` if it isn't on the default search path)
+- SFML 3.1, for the playground and the editor (`SFML_DIR` if it isn't on the default search path)
 
 ```bash
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build
 ./build/forma_tests
 ./build/forma_playground
+./build/forma_editor examples/level.json
 ```
+
+`forma_editor --asset examples/face.json` opens a creature with the origin centered. Without a path it starts a 1280×720 world. Ctrl+S (or S) writes the JSON.
+
+The left column is the frame tree. New shapes are parented to the selected frame, in that frame's local space. Drag a frame origin to move the whole part. `1`–`6` pick select, circle, polygon, line, spline, frame. Enter finishes a multi-point shape. N renames the selected frame. Delete removes the selection. L flips a shape between the `draw` and `solid` layers. Drag the canvas corner to set the size. Wheel zooms, middle mouse pans.
+
+`examples/level.json` places `examples/face.json`. An instance is a frame; the creature file stays the source.
+
+## Hierarchy
+
+A node belongs to one frame. Primitives in a frame still share nodes. A child frame's translation is in its parent, so rotating the head carries the eyes, and rotating a lid does not move the eye. `inherit` can drop translation, rotation, or scale. Non-uniform scale on a frame squashes that part in the parent's axes, children included, unless they turn scale inheritance off.
+
+Positive rotation is clockwise on the Y-down screen. The file stores degrees.
 
 Offline checkouts:
 
@@ -56,4 +72,4 @@ Coordinates in the node pool are pixels, Y down. The exporter divides by `pixels
 
 ## What this version leaves out
 
-Ellipses, oriented rectangles, holes as an authoring primitive (boolean results can contain them), gradients, and convex decomposition of concave fixtures. Add those at the sampling boundary rather than inside Box2D types.
+Ellipses as their own primitive, holes as an authoring primitive (boolean results can contain them), gradients, and convex decomposition of concave fixtures. An oriented rectangle is a polygon in a rotated frame, not a separate type. Curve sockets and animation clips are not in the file yet; stable frame and node ids are the hook.

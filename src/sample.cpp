@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <stdexcept>
 #include <vector>
 
 namespace forma {
@@ -71,16 +72,16 @@ Vec2 atNode(const NodePool& pool, const std::vector<NodeId>& nodes, int index, b
 
 void appendSpan(std::vector<Vec2>& out, Vec2 p0, Vec2 p1, Vec2 p2, Vec2 p3, float alpha, float curve,
                 float chordError) {
-    struct Frame {
+    struct Chord {
         float a;
         float b;
         int depth;
     };
-    std::vector<Frame> stack;
+    std::vector<Chord> stack;
     stack.push_back({0.f, 1.f, 0});
     const float error = std::max(chordError, 0.05f);
     while (!stack.empty()) {
-        const Frame frame = stack.back();
+        const Chord frame = stack.back();
         stack.pop_back();
         const Vec2 pa = catmull(p0, p1, p2, p3, frame.a, alpha, curve);
         const Vec2 pb = catmull(p0, p1, p2, p3, frame.b, alpha, curve);
@@ -94,6 +95,29 @@ void appendSpan(std::vector<Vec2>& out, Vec2 p0, Vec2 p1, Vec2 p2, Vec2 p3, floa
             stack.push_back({mid, frame.b, frame.depth + 1});
             stack.push_back({frame.a, mid, frame.depth + 1});
         }
+    }
+}
+
+FrameId requireFrame(const NodePool& pool, const std::vector<NodeId>& ids) {
+    if (ids.empty()) {
+        return {};
+    }
+    const FrameId frame = pool.frame(ids.front());
+    for (NodeId id : ids) {
+        if (pool.frame(id) != frame) {
+            throw std::invalid_argument("forma primitive crosses frames");
+        }
+    }
+    return frame;
+}
+
+void applyFrame(const NodePool& pool, FrameId frame, std::vector<Vec2>& pts) {
+    if (!frame.valid() || pts.empty()) {
+        return;
+    }
+    const Affine xform = pool.frameWorld(frame);
+    for (Vec2& p : pts) {
+        p = xform.apply(p);
     }
 }
 
@@ -114,9 +138,11 @@ Polyline2 resolve(const NodePool& pool, const Polyline& line) {
     Polyline2 out;
     out.closed = line.closed;
     out.pts.reserve(line.nodes.size());
+    const FrameId frame = requireFrame(pool, line.nodes);
     for (NodeId id : line.nodes) {
         out.pts.push_back(pool.get(id));
     }
+    applyFrame(pool, frame, out.pts);
     return out;
 }
 
@@ -127,8 +153,10 @@ Polyline2 sample(const NodePool& pool, const CatmullRom& curve, float chordError
     if (n == 0) {
         return out;
     }
+    const FrameId frame = requireFrame(pool, curve.nodes);
     if (n == 1) {
         out.pts.push_back(pool.get(curve.nodes[0]));
+        applyFrame(pool, frame, out.pts);
         return out;
     }
     const float alpha = alphaOf(curve.parameterization);
@@ -144,11 +172,13 @@ Polyline2 sample(const NodePool& pool, const CatmullRom& curve, float chordError
     if (curve.closed && out.pts.size() >= 2 && distance(out.pts.front(), out.pts.back()) < 1e-2f) {
         out.pts.pop_back();
     }
+    applyFrame(pool, frame, out.pts);
     return out;
 }
 
 Polygon2 sample(const NodePool& pool, const Circle& circle, float chordError) {
     Polygon2 out;
+    const FrameId frame = requireFrame(pool, std::vector<NodeId>{circle.center});
     const Vec2 center = pool.get(circle.center);
     const float radius = std::max(circle.radius, 0.f);
     if (radius <= 0.f) {
@@ -165,15 +195,18 @@ Polygon2 sample(const NodePool& pool, const Circle& circle, float chordError) {
         const float a = -static_cast<float>(i) * (2.f * kPi / static_cast<float>(count));
         out.outer.pts.push_back(center + Vec2{std::cos(a) * radius, std::sin(a) * radius});
     }
+    applyFrame(pool, frame, out.outer.pts);
     return out;
 }
 
 Polygon2 resolve(const NodePool& pool, const Polygon& polygon) {
     Polygon2 out;
     out.outer.pts.reserve(polygon.nodes.size());
+    const FrameId frame = requireFrame(pool, polygon.nodes);
     for (NodeId id : polygon.nodes) {
         out.outer.pts.push_back(pool.get(id));
     }
+    applyFrame(pool, frame, out.outer.pts);
     return out;
 }
 

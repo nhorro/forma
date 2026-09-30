@@ -33,6 +33,8 @@ struct Vec2 {
         y *= s;
         return *this;
     }
+
+    friend constexpr bool operator==(Vec2 a, Vec2 b) = default;
 };
 
 constexpr Vec2 operator*(float s, Vec2 v) { return v * s; }

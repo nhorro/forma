@@ -55,6 +55,8 @@ add_library(forma
     src/mesh.cpp
     src/clipper_ops.cpp
     src/box2d_export.cpp
+    src/node_pool.cpp
+    src/document.cpp
 )
 target_include_directories(forma PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")
 target_link_libraries(forma PUBLIC box2d::box2d Clipper2)
@@ -74,6 +76,9 @@ if(FORMA_BUILD_EXAMPLE)
 
         add_executable(forma_playground examples/playground.cpp)
         target_link_libraries(forma_playground PRIVATE forma_sfml)
+
+        add_executable(forma_editor editor/main.cpp)
+        target_link_libraries(forma_editor PRIVATE forma_sfml)
     else()
         message(STATUS "SFML 3 not found — skipping forma_playground. Set SFML_DIR to the SFML cmake config.")
     endif()

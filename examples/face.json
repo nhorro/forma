@@ -1,0 +1,30 @@
+{
+  "forma": 1,
+  "kind": "asset",
+  "name": "face",
+  "root": "head",
+  "frames": [
+    {"id": "head", "t": [0, 0], "r": 0, "s": [1, 1]},
+    {"id": "eye.L", "parent": "head", "t": [-38, -26], "r": 0, "s": [1, 1]},
+    {"id": "eye.R", "parent": "head", "t": [38, -26], "r": 0, "s": [1, 1]},
+    {"id": "mouth", "parent": "head", "t": [0, 36], "r": 0, "s": [1, 1]}
+  ],
+  "nodes": [
+    {"id": "head.c", "frame": "head", "p": [0, 0]},
+    {"id": "eye.L.c", "frame": "eye.L", "p": [0, 0]},
+    {"id": "eye.R.c", "frame": "eye.R", "p": [0, 0]},
+    {"id": "m0", "frame": "mouth", "p": [-36, 0]},
+    {"id": "m1", "frame": "mouth", "p": [-12, 16]},
+    {"id": "m2", "frame": "mouth", "p": [12, 16]},
+    {"id": "m3", "frame": "mouth", "p": [36, 0]}
+  ],
+  "primitives": [
+    {"id": "head.fill", "kind": "circle", "center": "head.c", "radius": 92, "fill": "#e7dfd0", "stroke": {"width": 3, "color": "#1c1915", "cap": "round", "join": "round"}},
+    {"id": "eye.L.fill", "kind": "circle", "center": "eye.L.c", "radius": 14, "fill": "#1c1915"},
+    {"id": "eye.R.fill", "kind": "circle", "center": "eye.R.c", "radius": 14, "fill": "#1c1915"},
+    {"id": "mouth.line", "kind": "catmull", "nodes": ["m0", "m1", "m2", "m3"], "curve": 1, "parameterization": "centripetal", "stroke": {"width": 3, "color": "#c4491d", "cap": "round", "join": "round"}}
+  ],
+  "layers": [
+    {"id": "draw", "order": 0, "role": "visual"}
+  ]
+}
