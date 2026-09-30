@@ -1,0 +1,35 @@
+{
+  "forma": 1,
+  "kind": "asset",
+  "name": "soft",
+  "root": "root",
+  "frames": [
+    {"id": "root", "t": [0, 0], "r": 0, "s": [1, 1], "influence": 36},
+    {"id": "s1", "parent": "root", "pivot": "j1", "t": [70, 0], "r": 0, "s": [1, 1], "limit": [-35, 35], "influence": 40},
+    {"id": "s2", "parent": "s1", "pivot": "j2", "t": [70, 0], "r": 0, "s": [1, 1], "limit": [-35, 35], "influence": 36},
+    {"id": "s3", "parent": "s2", "pivot": "j3", "t": [70, 0], "r": 0, "s": [1, 1], "limit": [-35, 35], "influence": 32}
+  ],
+  "nodes": [
+    {"id": "j1", "frame": "root", "p": [70, 0]},
+    {"id": "j2", "frame": "s1", "p": [70, 0]},
+    {"id": "j3", "frame": "s2", "p": [70, 0]},
+    {"id": "a0", "frame": "root", "p": [8, -22]},
+    {"id": "a1", "frame": "root", "p": [70, -20]},
+    {"id": "a2", "frame": "root", "p": [140, -16]},
+    {"id": "a3", "frame": "root", "p": [200, -12]},
+    {"id": "a4", "frame": "root", "p": [200, 12]},
+    {"id": "a5", "frame": "root", "p": [140, 16]},
+    {"id": "a6", "frame": "root", "p": [70, 20]},
+    {"id": "a7", "frame": "root", "p": [8, 22]}
+  ],
+  "primitives": [
+    {
+      "id": "body",
+      "kind": "polygon",
+      "nodes": ["a0", "a1", "a2", "a3", "a4", "a5", "a6", "a7"],
+      "fill": "#1e4d3c",
+      "stroke": {"width": 2, "color": "#1c1915", "cap": "round", "join": "round"},
+      "skin": true
+    }
+  ]
+}

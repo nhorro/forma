@@ -16,6 +16,10 @@ SFML and Box2D are adapters. They are not the model.
 | Joint | Optional pivot node on a child frame, plus a hinge limit relative to the rest angle. |
 | `deformSkin` | Soft bake from bone influence radii. Parented shapes do not use it. |
 | `solveIk` | One limb. Two-bone chains are exact, with a pole so the knee stays put. Longer chains use FABRIK. |
+| `Clip` | Joint angles over time, relative to rest. `Replace` or `Add`, then the hinge is clamped. |
+| `deformSkinLine` | A primitive with `"skin": true` follows bone influence radii. |
+| `convexParts` | Concave outlines become convex pieces of at most 8 vertices for Box2D. |
+| `createRagdoll` | One body per frame, a revolute joint per hinge, limits included. |
 | Sampling | Chord-error evaluation into world-space `Polyline2` / `Polygon2` |
 | `clipper_ops` | Union, difference, intersection, inflate (Clipper2 2.0) |
 | `mesh` | Fill and thick stroke as triangles. Strokes are ribbons, because SFML 3 has no quad primitive. |
@@ -39,13 +43,18 @@ cmake --build build
 ./build/forma_tests
 ./build/forma_playground
 ./build/forma_editor examples/level.json
+./build/forma_walk
 ```
+
+`forma_walk` steps `examples/human.json` and `examples/quadruped.json`. The human's `swing` clip plays on the arms. `examples/soft.json` is a skinned outline: pose the chain in the editor and the body follows the bone radii instead of a parent frame.
+
+`convexParts` splits a concave level outline before `buildConvexParts` turns each piece into a fixture. `createRagdoll` hangs the same hinges on Box2D revolute joints. Forma angles are clockwise and Y-down, so the joint angles are negated.
 
 `forma_editor examples/tentacle.json` opens the chain. `forma_editor examples/human.json` opens the ragdoll. Both are assets, so the origin starts in the center of the view. The panel is Dear ImGui.
 
 Bind mode edits the rest pose, the shapes, and the hinges. Pose mode bends a bone by dragging it; the arc is the angular limit. Save always writes the bind pose. "Use pose as bind" copies the preview back into the rest pose, and the limits stay relative to that new rest.
 
-A shape lives on a frame, so it rotates with that bone and cannot span two bones. A joint is optional: the child frame's pivot is a node in the parent, and the hinge limit is degrees relative to the rest angle. Skin radius is not used by those shapes. `deformSkin` reads it when you want a soft outline instead of a rigid part.
+A shape lives on a frame, so it rotates with that bone and cannot span two bones. A joint is optional: the child frame's pivot is a node in the parent, and the hinge limit is degrees relative to the rest angle. A primitive marked `skin` ignores that and is deformed by the bone radii instead.
 
 In Pose mode, dragging a bone runs IK on that limb. The chain stops where the parent branches, so a hand drag solves the arm and a foot drag solves the leg. The pole is taken from the hinge: a knee limited to one side bends that way. `solveIk` is the same call you make at runtime, once per limb, after the body is placed. It only writes rotations.
 

@@ -61,6 +61,10 @@ public:
     float limitMax(FrameId frame) const;
     void clampToLimits(FrameId frame);
 
+    /// Skin falloff around the bone, in pixels. Zero does not deform.
+    void setInfluence(FrameId frame, float radius);
+    float influence(FrameId frame) const;
+
     /// World matrix of the bind pose. Pivot nodes contribute their rest position.
     Affine frameBind(FrameId frame) const;
 
@@ -106,6 +110,7 @@ private:
         bool limitEnabled = false;
         float limitMin = 0.f;
         float limitMax = 0.f;
+        float influence = 0.f;
         uint32_t generation = 1;
     };
 

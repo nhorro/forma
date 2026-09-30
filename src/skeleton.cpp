@@ -93,4 +93,37 @@ std::vector<Vec2> deformSkin(const NodePool& pool, std::span<const Vec2> restInR
     return out;
 }
 
+std::vector<BoneInfluence> boneInfluences(const NodePool& pool) {
+    std::vector<BoneInfluence> influences;
+    for (uint32_t i = 0; i < pool.frameCount(); ++i) {
+        const FrameId frame{i};
+        const float radius = pool.influence(frame);
+        if (radius > 0.f) {
+            influences.push_back(BoneInfluence{frame, radius});
+        }
+    }
+    return influences;
+}
+
+std::vector<Vec2> skinRest(const NodePool& pool, std::span<const NodeId> nodes) {
+    std::vector<Vec2> rest;
+    rest.reserve(nodes.size());
+    const Affine rootBind = pool.frameBind(pool.root());
+    Affine inverseRoot;
+    const bool ok = invert(rootBind, inverseRoot);
+    for (NodeId id : nodes) {
+        const Vec2 bound = pool.frameBind(pool.frame(id)).apply(pool.rest(id));
+        rest.push_back(ok ? inverseRoot.apply(bound) : bound);
+    }
+    return rest;
+}
+
+Polyline2 deformSkinLine(const NodePool& pool, std::span<const NodeId> nodes, bool closed) {
+    Polyline2 line;
+    line.closed = closed;
+    const std::vector<Vec2> rest = skinRest(pool, nodes);
+    line.pts = deformSkin(pool, rest, boneInfluences(pool));
+    return line;
+}
+
 }  // namespace forma

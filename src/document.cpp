@@ -714,6 +714,9 @@ void compileInto(const Document& document, NodePool& pool, FrameId attachUnder, 
         if (frame.hasLimit) {
             pool.setLimits(found->second, true, frame.limitMin, frame.limitMax);
         }
+        if (frame.influence > 0.f) {
+            pool.setInfluence(found->second, frame.influence);
+        }
     }
 
     for (const PrimitiveDesc& primitive : document.primitives) {
@@ -726,6 +729,7 @@ void compileInto(const Document& document, NodePool& pool, FrameId attachUnder, 
         compiled.fill = primitive.fill;
         compiled.stroke = primitive.stroke;
         compiled.layer = primitive.layer;
+        compiled.skin = primitive.skin;
         auto same = [&](const std::vector<NodeId>& ids) {
             if (ids.empty()) {
                 return;
@@ -947,6 +951,12 @@ Document documentFromJson(std::string_view json) {
                 }
                 primitive.closed = closed->b;
             }
+            if (const Val* skin = item.find("skin")) {
+                if (skin->type != Val::Type::Bool) {
+                    throw std::runtime_error("forma json: skin wants a bool");
+                }
+                primitive.skin = skin->b;
+            }
             if (const Val* curve = item.find("curve")) {
                 primitive.curve = num(*curve, parser.line);
             }
@@ -1003,6 +1013,40 @@ Document documentFromJson(std::string_view json) {
                 }
             }
             document.layers.push_back(std::move(layer));
+        }
+    }
+    if (const Val* clips = root.find("clips")) {
+        if (clips->type != Val::Type::Arr) {
+            throw std::runtime_error("forma json: clips wants an array");
+        }
+        for (const Val& item : clips->a) {
+            Clip clip;
+            clip.id = str(item.need("id", parser.line), parser.line);
+            if (const Val* duration = item.find("duration")) {
+                clip.duration = num(*duration, parser.line);
+            }
+            if (const Val* tracks = item.find("tracks")) {
+                if (tracks->type != Val::Type::Arr) {
+                    throw std::runtime_error("forma json: tracks wants an array");
+                }
+                for (const Val& trackItem : tracks->a) {
+                    ClipTrack track;
+                    track.frame = str(trackItem.need("frame", parser.line), parser.line);
+                    if (const Val* keys = trackItem.find("keys")) {
+                        if (keys->type != Val::Type::Arr) {
+                            throw std::runtime_error("forma json: keys wants an array");
+                        }
+                        for (const Val& keyItem : keys->a) {
+                            ClipKey key;
+                            key.time = num(keyItem.need("t", parser.line), parser.line);
+                            key.rotation = num(keyItem.need("r", parser.line), parser.line) * (kPi / 180.f);
+                            track.keys.push_back(key);
+                        }
+                    }
+                    clip.tracks.push_back(std::move(track));
+                }
+            }
+            document.clips.push_back(std::move(clip));
         }
     }
     return document;
@@ -1161,6 +1205,9 @@ std::string toJson(const Document& document) {
             w.raw(escape(primitive.layer));
             w.raw("\"");
         }
+        if (primitive.skin) {
+            w.raw(", \"skin\": true");
+        }
         w.raw("}");
         if (i + 1 < document.primitives.size()) {
             w.raw(",");
@@ -1224,6 +1271,48 @@ std::string toJson(const Document& document) {
             w.raw(role);
             w.raw("\"}");
             if (i + 1 < document.layers.size()) {
+                w.raw(",");
+            }
+        }
+        w.indent--;
+        w.nl();
+        w.raw("]");
+    }
+    if (!document.clips.empty()) {
+        w.raw(",");
+        w.nl();
+        w.raw("\"clips\": [");
+        w.indent++;
+        for (std::size_t i = 0; i < document.clips.size(); ++i) {
+            const Clip& clip = document.clips[i];
+            w.nl();
+            w.raw("{\"id\": \"");
+            w.raw(escape(clip.id));
+            w.raw("\", \"duration\": ");
+            w.raw(numStr(clip.duration));
+            w.raw(", \"tracks\": [");
+            for (std::size_t t = 0; t < clip.tracks.size(); ++t) {
+                const ClipTrack& track = clip.tracks[t];
+                if (t) {
+                    w.raw(", ");
+                }
+                w.raw("{\"frame\": \"");
+                w.raw(escape(track.frame));
+                w.raw("\", \"keys\": [");
+                for (std::size_t k = 0; k < track.keys.size(); ++k) {
+                    if (k) {
+                        w.raw(", ");
+                    }
+                    w.raw("{\"t\": ");
+                    w.raw(numStr(track.keys[k].time));
+                    w.raw(", \"r\": ");
+                    w.raw(numStr(track.keys[k].rotation * (180.f / kPi)));
+                    w.raw("}");
+                }
+                w.raw("]}");
+            }
+            w.raw("]}");
+            if (i + 1 < document.clips.size()) {
                 w.raw(",");
             }
         }

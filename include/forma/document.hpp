@@ -1,5 +1,6 @@
 #pragma once
 
+#include "forma/clip.hpp"
 #include "forma/geometry.hpp"
 
 #include <functional>
@@ -58,6 +59,7 @@ struct PrimitiveDesc {
     std::optional<Color> fill;
     std::optional<StrokeStyle> stroke;
     std::string layer;
+    bool skin = false;
 };
 
 struct InstanceDesc {
@@ -86,6 +88,7 @@ struct Document {
     std::vector<PrimitiveDesc> primitives;
     std::vector<InstanceDesc> instances;
     std::vector<LayerDesc> layers;
+    std::vector<Clip> clips;
 };
 
 struct CompiledPrimitive {
@@ -98,6 +101,7 @@ struct CompiledPrimitive {
     std::optional<Color> fill;
     std::optional<StrokeStyle> stroke;
     std::string layer;
+    bool skin = false;
 };
 
 struct CompiledDocument {

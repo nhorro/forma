@@ -1,9 +1,11 @@
 #include "forma/box2d_export.hpp"
 
+#include "forma/decompose.hpp"
 #include "forma/predicates.hpp"
 
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 
 namespace forma {
 namespace {
@@ -162,6 +164,112 @@ b2Circle buildCircle(float radiusPixels, PhysicsScale scale) {
     circle.center = {0.f, 0.f};
     circle.radius = std::max(radiusPixels, 0.f) / std::max(scale.pixelsPerMeter, 1e-6f);
     return circle;
+}
+
+std::vector<ConvexBody> buildConvexParts(std::span<const Vec2> screenPoints, PhysicsScale scale) {
+    std::vector<ConvexBody> bodies;
+    for (const std::vector<Vec2>& part : convexParts(screenPoints)) {
+        ConvexBody body = buildConvexBody(part, scale);
+        if (body.ok) {
+            bodies.push_back(std::move(body));
+        }
+    }
+    return bodies;
+}
+
+namespace {
+
+constexpr float kPi = 3.14159265358979323846f;
+
+float worldAngle(const NodePool& pool, FrameId frame) {
+    const Affine world = pool.frameWorld(frame);
+    const Vec2 axis = world.apply({1.f, 0.f}) - world.apply({0.f, 0.f});
+    return std::atan2(axis.y, axis.x);
+}
+
+float localLength(const NodePool& pool, FrameId frame) {
+    const Vec2 origin = pool.frameWorld(frame).apply({0.f, 0.f});
+    float best = 0.f;
+    for (uint32_t i = 0; i < pool.frameCount(); ++i) {
+        const FrameId candidate{i};
+        if (pool.parent(candidate) != frame) {
+            continue;
+        }
+        const Vec2 local = pool.toLocal(frame, pool.frameWorld(candidate).apply({0.f, 0.f}));
+        best = std::max(best, length(local));
+        (void)origin;
+    }
+    return best;
+}
+
+b2Vec2 meters(Vec2 formaLocal, float pixelsPerMeter) {
+    return {formaLocal.x / pixelsPerMeter, -formaLocal.y / pixelsPerMeter};
+}
+
+}  // namespace
+
+Ragdoll createRagdoll(b2WorldId world, const NodePool& pool, PhysicsScale scale, const RagdollOptions& options) {
+    Ragdoll ragdoll;
+    const float ppm = std::max(scale.pixelsPerMeter, 1e-6f);
+    const float width = std::max(options.halfWidth, 1.f);
+    for (uint32_t i = 0; i < pool.frameCount(); ++i) {
+        const FrameId frame{i};
+        const float length = std::max(localLength(pool, frame), width * 2.f);
+        const Vec2 corners[] = {{0.f, -width}, {length, -width}, {length, width}, {0.f, width}};
+        b2Vec2 local[4];
+        for (int c = 0; c < 4; ++c) {
+            local[c] = meters(corners[c], ppm);
+        }
+        const b2Hull hull = b2ComputeHull(local, 4);
+        b2BodyDef def = b2DefaultBodyDef();
+        def.type = options.pinRoot && frame == pool.root() ? b2_kinematicBody : b2_dynamicBody;
+        const Vec2 origin = pool.frameWorld(frame).apply({0.f, 0.f});
+        def.position = toWorld(origin, scale);
+        def.rotation = b2MakeRot(-worldAngle(pool, frame));
+        const b2BodyId body = b2CreateBody(world, &def);
+        if (hull.count >= 3) {
+            const b2Polygon polygon = b2MakePolygon(&hull, 0.f);
+            b2ShapeDef shape = b2DefaultShapeDef();
+            shape.density = options.density;
+            shape.material.friction = 0.6f;
+            b2CreatePolygonShape(body, &shape, &polygon);
+        }
+        ragdoll.bodies.push_back(BoneBody{frame, body});
+    }
+    auto bodyOf = [&](FrameId frame) {
+        for (const BoneBody& bone : ragdoll.bodies) {
+            if (bone.frame == frame) {
+                return bone.id;
+            }
+        }
+        return b2_nullBodyId;
+    };
+    for (uint32_t i = 0; i < pool.frameCount(); ++i) {
+        const FrameId child{i};
+        const FrameId parent = pool.parent(child);
+        if (!parent.valid()) {
+            continue;
+        }
+        b2RevoluteJointDef joint = b2DefaultRevoluteJointDef();
+        joint.bodyIdA = bodyOf(parent);
+        joint.bodyIdB = bodyOf(child);
+        const Vec2 anchor = pool.frameWorld(child).apply({0.f, 0.f});
+        joint.localAnchorA = meters(pool.toLocal(parent, anchor), ppm);
+        joint.localAnchorB = {0.f, 0.f};
+        joint.referenceAngle = -worldAngle(pool, child) - (-worldAngle(pool, parent));
+        joint.collideConnected = false;
+        joint.drawSize = 0.15f;
+        if (options.limits && pool.hasLimits(child)) {
+            const float cap = 0.99f * kPi;
+            const float lower = std::clamp(-pool.limitMax(child), -cap, cap);
+            const float upper = std::clamp(-pool.limitMin(child), -cap, cap);
+            joint.enableLimit = true;
+            joint.lowerAngle = std::min(lower, upper);
+            joint.upperAngle = std::max(lower, upper);
+        }
+        ragdoll.joints.push_back(HingeJoint{child, b2CreateRevoluteJoint(world, &joint)});
+    }
+    return ragdoll;
 }
 
 }  // namespace forma

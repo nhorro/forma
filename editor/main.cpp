@@ -151,6 +151,9 @@ struct Editor {
         std::reverse(ikChain.begin(), ikChain.end());
         ikTip = childrenOf(leaf).empty() ? tipOf(leaf) : forma::Vec2{};
     }
+    int clipIndex = -1;
+    bool playClip = false;
+    float clipTime = 0.f;
     bool cameraSet = false;
     bool asset = false;
     char pathBuffer[512] = "untitled.json";
@@ -590,7 +593,28 @@ struct Editor {
                 }
                 return style;
             };
-            if (primitive.kind == forma::PrimitiveKind::Polyline || primitive.kind == forma::PrimitiveKind::Catmull) {
+            if (primitive.skin && primitive.kind != forma::PrimitiveKind::Circle) {
+                std::vector<forma::NodeId> ids;
+                bool closed = false;
+                if (primitive.kind == forma::PrimitiveKind::Polyline) {
+                    ids = primitive.polyline.nodes;
+                    closed = primitive.polyline.closed;
+                } else if (primitive.kind == forma::PrimitiveKind::Catmull) {
+                    ids = primitive.catmull.nodes;
+                    closed = primitive.catmull.closed;
+                } else {
+                    ids = primitive.polygon.nodes;
+                    closed = true;
+                }
+                const forma::Polyline2 line = forma::deformSkinLine(compiled.pool, ids, closed);
+                if (primitive.kind == forma::PrimitiveKind::Polygon && primitive.fill) {
+                    forma::Polygon2 shape;
+                    shape.outer.pts = line.pts;
+                    forma::draw(target, forma::fillPolygon(shape, *primitive.fill));
+                }
+                forma::StrokeStyle style = primitive.stroke.value_or(forma::StrokeStyle{2.f, forma::Color::hex(0x1c1915)});
+                forma::draw(target, forma::strokePolyline(line, strokeOf(style)));
+            } else if (primitive.kind == forma::PrimitiveKind::Polyline || primitive.kind == forma::PrimitiveKind::Catmull) {
                 const forma::Polyline2 line = primitive.kind == forma::PrimitiveKind::Polyline
                                                   ? forma::resolve(compiled.pool, primitive.polyline)
                                                   : forma::sample(compiled.pool, primitive.catmull, 0.6f);
@@ -746,7 +770,8 @@ struct Editor {
                 if (posing) compiled.pool.clampToLimits(frameId->second);
             }
             if (ImGui::DragFloat("skin radius", &frame->influence, 0.5f, 0.f, 400.f, "%.0f")) {
-                status = "Skin radius feeds deformSkin. Shapes on this frame stay rigid.";
+                compiled.pool.setInfluence(frameId->second, frame->influence);
+                status = "Skin radius deforms primitives marked skin. Parented shapes stay rigid.";
             }
 
             const char* pivotLabel = frame->pivot.empty() ? "(translation)" : frame->pivot.c_str();
@@ -776,6 +801,37 @@ struct Editor {
         for (const auto& primitive : doc.primitives) {
             if (frameOfPrimitive(primitive) != selectedFrame) continue;
             if (ImGui::Selectable(primitive.id.c_str(), primitive.id == selectedPrimitive)) selectedPrimitive = primitive.id;
+        }
+        if (forma::PrimitiveDesc* primitive = primitiveById(selectedPrimitive)) {
+            bool skin = primitive->skin;
+            if (ImGui::Checkbox("skin this shape", &skin)) {
+                primitive->skin = skin;
+                rebuild(posing);
+            }
+            ImGui::TextDisabled("A skinned shape uses bone radii. It does not ride one frame.");
+        }
+        if (!doc.clips.empty()) {
+            ImGui::Separator();
+            ImGui::Text("clips");
+            for (int i = 0; i < static_cast<int>(doc.clips.size()); ++i) {
+                if (ImGui::Selectable(doc.clips[static_cast<std::size_t>(i)].id.c_str(), clipIndex == i)) {
+                    clipIndex = i;
+                    clipTime = 0.f;
+                }
+            }
+            if (clipIndex >= 0 && clipIndex < static_cast<int>(doc.clips.size())) {
+                const forma::Clip& clip = doc.clips[static_cast<std::size_t>(clipIndex)];
+                if (ImGui::Checkbox("play", &playClip)) {
+                    if (!playClip) {
+                        compiled.pool.resetToRest();
+                    }
+                }
+                ImGui::SliderFloat("time", &clipTime, 0.f, std::max(clip.duration, 0.01f));
+                if (playClip && drag != Drag::Pose) {
+                    clipTime += ImGui::GetIO().DeltaTime;
+                    forma::applyClip(compiled.pool, compiled.frames, clip, clipTime, forma::ClipBlend::Replace);
+                }
+            }
         }
         if (!posing) {
             ImGui::Separator();

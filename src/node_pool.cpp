@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cmath>
 
 namespace forma {
 namespace {
@@ -167,6 +168,13 @@ void NodePool::clampToLimits(FrameId id) {
     next.rotation = frame.rest.rotation + clamped;
     setPose(id, next);
 }
+
+void NodePool::setInfluence(FrameId id, float radius) {
+    FrameRec& frame = atFrame(id);
+    frame.influence = std::max(radius, 0.f);
+}
+
+float NodePool::influence(FrameId id) const { return atFrame(id).influence; }
 
 Affine NodePool::frameBind(FrameId id) const {
     std::vector<FrameId> chain;

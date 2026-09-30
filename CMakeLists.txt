@@ -59,6 +59,8 @@ add_library(forma
     src/document.cpp
     src/skeleton.cpp
     src/ik.cpp
+    src/clip.cpp
+    src/decompose.cpp
 )
 target_include_directories(forma PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")
 target_link_libraries(forma PUBLIC box2d::box2d Clipper2)
@@ -78,6 +80,9 @@ if(FORMA_BUILD_EXAMPLE)
 
         add_executable(forma_playground examples/playground.cpp)
         target_link_libraries(forma_playground PRIVATE forma_sfml)
+
+        add_executable(forma_walk examples/walk.cpp)
+        target_link_libraries(forma_walk PRIVATE forma_sfml)
 
         include(FetchContent)
         FetchContent_Declare(

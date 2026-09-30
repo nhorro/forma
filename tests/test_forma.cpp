@@ -303,6 +303,101 @@ void ikTests() {
     }
 }
 
+void backlogTests() {
+    using namespace forma;
+    const float pi = 3.1415926535f;
+    const Vec2 ell[] = {{0.f, 0.f}, {30.f, 0.f}, {30.f, 10.f}, {10.f, 10.f}, {10.f, 30.f}, {0.f, 30.f}};
+    const std::vector<std::vector<Vec2>> parts = convexParts(ell);
+    CHECK(parts.size() >= 2);
+    float area = 0.f;
+    for (const std::vector<Vec2>& part : parts) {
+        CHECK(part.size() >= 3);
+        CHECK(static_cast<int>(part.size()) <= 8);
+        CHECK(isConvex(part));
+        area += std::fabs(signedArea(part));
+    }
+    CHECK(std::fabs(area - 500.f) < 2.f);
+    bool notch = false;
+    for (const std::vector<Vec2>& part : parts) {
+        if (pointInPolygon({20.f, 20.f}, part)) {
+            notch = true;
+        }
+    }
+    CHECK(!notch);
+
+    const Vec2 box[] = {{0.f, 0.f}, {0.f, 10.f}, {10.f, 10.f}, {10.f, 0.f}};
+    CHECK(convexParts(box).size() == 1);
+    PhysicsScale scale;
+    const std::vector<ConvexBody> fixtures = buildConvexParts(ell, scale);
+    CHECK(fixtures.size() >= 2);
+    for (const ConvexBody& fixture : fixtures) {
+        CHECK(fixture.ok);
+    }
+
+    NodePool pool;
+    const FrameId bone = pool.createFrame(pool.root());
+    pool.setPivot(bone, pool.create({40.f, 0.f}));
+    pool.setInfluence(bone, 100.f);
+    const NodeId skinPoint = pool.create({70.f, 0.f});
+    FramePose posed = pool.pose(bone);
+    posed.rotation = pi / 2.f;
+    pool.setPose(bone, posed);
+    const Polyline2 skinned = deformSkinLine(pool, std::span<const NodeId>(&skinPoint, 1), false);
+    CHECK(std::fabs(skinned.pts[0].x - 40.f) < 1.5f);
+    CHECK(std::fabs(skinned.pts[0].y - 30.f) < 1.5f);
+
+    Clip clip;
+    clip.duration = 1.f;
+    ClipTrack track;
+    track.frame = "bone";
+    track.keys = {{0.f, 0.f}, {0.5f, 0.4f}, {1.f, 0.f}};
+    clip.tracks.push_back(track);
+    CHECK(std::fabs(sampleClip(clip, track, 0.25f) - 0.2f) < 1e-3f);
+    const std::unordered_map<std::string, FrameId> names{{"bone", bone}};
+    pool.resetToRest();
+    applyClip(pool, names, clip, 0.5f, ClipBlend::Replace);
+    CHECK(std::fabs(pool.pose(bone).rotation - 0.4f) < 1e-3f);
+
+    const char* json = R"({
+      "forma": 1, "kind": "asset", "root": "root",
+      "frames": [{"id": "root", "t": [0, 0], "r": 0, "s": [1, 1]}],
+      "clips": [{"id": "wave", "duration": 1, "tracks": [{"frame": "root", "keys": [{"t": 0, "r": 0}, {"t": 1, "r": 30}]}]}],
+      "primitives": [{"id": "skin", "kind": "polyline", "skin": true}]
+    })";
+    const Document round = documentFromJson(toJson(documentFromJson(json)));
+    CHECK(round.clips.size() == 1);
+    CHECK(std::fabs(round.clips[0].tracks[0].keys[1].rotation * (180.f / pi) - 30.f) < 1e-2f);
+    CHECK(round.primitives[0].skin);
+
+    NodePool limb;
+    const FrameId upper = limb.createFrame(limb.root());
+    limb.setPivot(upper, limb.create({0.f, 0.f}));
+    const FrameId lower = limb.createFrame(upper);
+    limb.setPivot(lower, limb.create(upper, {50.f, 0.f}));
+    limb.setLimits(lower, true, 0.f, 0.6f);
+    b2WorldDef worldDef = b2DefaultWorldDef();
+    worldDef.gravity = {0.f, -10.f};
+    const b2WorldId world = b2CreateWorld(&worldDef);
+    RagdollOptions options;
+    options.pinRoot = true;
+    const Ragdoll ragdoll = createRagdoll(world, limb, scale, options);
+    CHECK(ragdoll.joints.size() == 2);
+    b2JointId hinge = b2_nullJointId;
+    for (const HingeJoint& joint : ragdoll.joints) {
+        if (joint.child == lower) {
+            hinge = joint.id;
+        }
+    }
+    CHECK(b2Joint_IsValid(hinge));
+    for (int step = 0; step < 90; ++step) {
+        b2World_Step(world, 1.f / 60.f, 4);
+    }
+    const float angle = b2RevoluteJoint_GetAngle(hinge);
+    CHECK(angle >= b2RevoluteJoint_GetLowerLimit(hinge) - 0.08f);
+    CHECK(angle <= b2RevoluteJoint_GetUpperLimit(hinge) + 0.08f);
+    b2DestroyWorld(world);
+}
+
 }  // namespace
 
 int main() {
@@ -380,6 +475,7 @@ int main() {
     hierarchyTests();
     skeletonTests();
     ikTests();
+    backlogTests();
 
     // Box2D: a circle dropped onto a ground chain comes to rest on it.
     PhysicsScale scale;

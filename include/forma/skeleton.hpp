@@ -27,4 +27,13 @@ std::vector<Bone> bones(const NodePool& pool);
 std::vector<Vec2> deformSkin(const NodePool& pool, std::span<const Vec2> restInRoot,
                              std::span<const BoneInfluence> influences);
 
+/// Radii stored on the frames. Zero radii are omitted.
+std::vector<BoneInfluence> boneInfluences(const NodePool& pool);
+
+/// Node rest positions converted into the root frame's bind space.
+std::vector<Vec2> skinRest(const NodePool& pool, std::span<const NodeId> nodes);
+
+/// World-space outline of a skinned polyline or polygon. The nodes stay at their bind pose.
+Polyline2 deformSkinLine(const NodePool& pool, std::span<const NodeId> nodes, bool closed);
+
 }  // namespace forma

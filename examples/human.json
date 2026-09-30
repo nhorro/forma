@@ -13,9 +13,9 @@
     {"id": "armL.R", "parent": "armU.R", "pivot": "j.elbowR", "t": [46, 0], "r": 0, "s": [1, 1], "limit": [0, 145]},
     {"id": "armU.L", "parent": "chest", "pivot": "j.armL", "t": [30, -16], "r": 180, "s": [1, 1], "limit": [-60, 90]},
     {"id": "armL.L", "parent": "armU.L", "pivot": "j.elbowL", "t": [46, 0], "r": 0, "s": [1, 1], "limit": [0, 145]},
-    {"id": "legU.R", "parent": "pelvis", "pivot": "j.hipR", "t": [14, 10], "r": 90, "s": [1, 1], "limit": [-25, 45]},
+    {"id": "legU.R", "parent": "pelvis", "pivot": "j.hipR", "t": [14, 10], "r": 90, "s": [1, 1], "limit": [-40, 50]},
     {"id": "legL.R", "parent": "legU.R", "pivot": "j.kneeR", "t": [54, 0], "r": 0, "s": [1, 1], "limit": [0, 150]},
-    {"id": "legU.L", "parent": "pelvis", "pivot": "j.hipL", "t": [-14, 10], "r": 90, "s": [1, 1], "limit": [-25, 45]},
+    {"id": "legU.L", "parent": "pelvis", "pivot": "j.hipL", "t": [-14, 10], "r": 90, "s": [1, 1], "limit": [-40, 50]},
     {"id": "legL.L", "parent": "legU.L", "pivot": "j.kneeL", "t": [54, 0], "r": 0, "s": [1, 1], "limit": [0, 150]}
   ],
   "nodes": [
@@ -98,5 +98,15 @@
   ],
   "layers": [
     {"id": "draw", "order": 0, "role": "visual"}
+  ],
+  "clips": [
+    {
+      "id": "swing",
+      "duration": 0.8,
+      "tracks": [
+        {"frame": "armU.R", "keys": [{"t": 0, "r": 0}, {"t": 0.4, "r": 28}, {"t": 0.8, "r": 0}]},
+        {"frame": "armU.L", "keys": [{"t": 0, "r": 0}, {"t": 0.4, "r": -28}, {"t": 0.8, "r": 0}]}
+      ]
+    }
   ]
 }

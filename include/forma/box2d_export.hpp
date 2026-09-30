@@ -50,4 +50,35 @@ ConvexBody buildConvexBody(std::span<const Vec2> screenPoints, PhysicsScale scal
 /// Circle in body-local meters, centered on the body origin.
 b2Circle buildCircle(float radiusPixels, PhysicsScale scale);
 
+/// One fixture per convex part. Concave outlines keep their notches, up to 8 vertices each.
+std::vector<ConvexBody> buildConvexParts(std::span<const Vec2> screenPoints, PhysicsScale scale);
+
+struct BoneBody {
+    FrameId frame{};
+    b2BodyId id{};
+};
+
+struct HingeJoint {
+    FrameId child{};
+    b2JointId id{};
+};
+
+struct Ragdoll {
+    std::vector<BoneBody> bodies;
+    std::vector<HingeJoint> joints;
+};
+
+struct RagdollOptions {
+    float halfWidth = 6.f;
+    float density = 1.f;
+    bool limits = true;
+    /// The root body is kinematic, so the limbs hang off a placed torso.
+    bool pinRoot = false;
+};
+
+/// One dynamic body per frame and a revolute joint at each child pivot.
+/// Hinge limits use the frame limits. Forma angles are clockwise and Y-down;
+/// the joint angles are negated to match Box2D.
+Ragdoll createRagdoll(b2WorldId world, const NodePool& pool, PhysicsScale scale, const RagdollOptions& options = {});
+
 }  // namespace forma
