@@ -35,7 +35,7 @@ Dependencies, fetched by CMake if you don't pass a path:
 
 - [Box2D 3.1](https://github.com/erincatto/box2d) (`v3.1.1`)
 - [Clipper2 2.0.1](https://github.com/AngusJohnson/Clipper2)
-- SFML 3.1, for the playground and the editor (`SFML_DIR` if it isn't on the default search path)
+- [SFML 3.1.0](https://github.com/SFML/SFML), for the playground and the editor (`SFML_DIR` or `FORMA_SFML_DIR` to skip the download)
 
 ```bash
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
@@ -45,6 +45,8 @@ cmake --build build
 ./build/forma_editor examples/level.json
 ./build/forma_walk
 ```
+
+With no SFML path set, CMake clones the 3.1.0 tag. Compiling that tree needs CMake 3.28. On Linux, SFML's default build also needs the X11, OpenGL, UDev, FreeType, HarfBuzz, FLAC, and Vorbis development packages.
 
 `forma_walk` steps `examples/human.json` and `examples/quadruped.json`. The human's `swing` clip plays on the arms. `examples/soft.json` is a skinned outline: pose the chain in the editor and the body follows the bone radii instead of a parent frame.
 
@@ -70,8 +72,10 @@ Offline checkouts:
 cmake -S . -B build \
   -DFORMA_BOX2D_DIR=/path/to/box2d \
   -DFORMA_CLIPPER2_DIR=/path/to/Clipper2/CPP \
-  -DSFML_DIR=/path/to/sfml/lib/cmake/SFML
+  -DFORMA_SFML_DIR=/path/to/SFML
 ```
+
+`SFML_DIR` selects an already-built config (`lib/cmake/SFML`) in place of `FORMA_SFML_DIR`.
 
 ## Docker
 

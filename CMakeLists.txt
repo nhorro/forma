@@ -11,6 +11,7 @@ option(FORMA_BUILD_EXAMPLE "Build the SFML 3 / Box2D 3 playground" ON)
 # Point these at a checkout to skip the download, e.g. -DFORMA_BOX2D_DIR=../box2d
 set(FORMA_BOX2D_DIR "" CACHE PATH "Existing Box2D 3 source tree")
 set(FORMA_CLIPPER2_DIR "" CACHE PATH "Existing Clipper2 CPP directory")
+set(FORMA_SFML_DIR "" CACHE PATH "Existing SFML 3 source tree")
 
 set(CLIPPER2_UTILS OFF CACHE BOOL "" FORCE)
 set(CLIPPER2_EXAMPLES OFF CACHE BOOL "" FORCE)
@@ -72,43 +73,51 @@ if(FORMA_BUILD_TESTS)
 endif()
 
 if(FORMA_BUILD_EXAMPLE)
-    find_package(SFML 3 QUIET COMPONENTS Graphics Window System)
-    if(SFML_FOUND)
-        add_library(forma_sfml src/sfml_draw.cpp)
-        target_link_libraries(forma_sfml PUBLIC forma SFML::Graphics)
-        target_compile_features(forma_sfml PUBLIC cxx_std_20)
-
-        add_executable(forma_playground examples/playground.cpp)
-        target_link_libraries(forma_playground PRIVATE forma_sfml)
-
-        add_executable(forma_walk examples/walk.cpp)
-        target_link_libraries(forma_walk PRIVATE forma_sfml)
-
-        include(FetchContent)
+    if(FORMA_SFML_DIR)
+        add_subdirectory("${FORMA_SFML_DIR}" "${CMAKE_BINARY_DIR}/sfml" EXCLUDE_FROM_ALL)
+    elseif(SFML_DIR)
+        find_package(SFML 3.1 REQUIRED COMPONENTS Graphics Window System)
+    else()
         FetchContent_Declare(
-            imgui
-            GIT_REPOSITORY https://github.com/ocornut/imgui.git
-            GIT_TAG v1.91.9
+            sfml
+            GIT_REPOSITORY https://github.com/SFML/SFML.git
+            GIT_TAG 3.1.0
             GIT_SHALLOW TRUE
         )
-        FetchContent_GetProperties(imgui)
-        if(NOT imgui_POPULATED)
-            FetchContent_Populate(imgui)
-        endif()
-        add_library(forma_imgui STATIC
-            ${imgui_SOURCE_DIR}/imgui.cpp
-            ${imgui_SOURCE_DIR}/imgui_draw.cpp
-            ${imgui_SOURCE_DIR}/imgui_tables.cpp
-            ${imgui_SOURCE_DIR}/imgui_widgets.cpp
-            editor/imgui_sfml.cpp
-        )
-        target_include_directories(forma_imgui PUBLIC ${imgui_SOURCE_DIR})
-        target_link_libraries(forma_imgui PUBLIC SFML::Graphics)
-        target_compile_features(forma_imgui PUBLIC cxx_std_20)
-
-        add_executable(forma_editor editor/main.cpp)
-        target_link_libraries(forma_editor PRIVATE forma_sfml forma_imgui)
-    else()
-        message(STATUS "SFML 3 not found — skipping forma_playground. Set SFML_DIR to the SFML cmake config.")
+        FetchContent_MakeAvailable(sfml)
     endif()
+
+    add_library(forma_sfml src/sfml_draw.cpp)
+    target_link_libraries(forma_sfml PUBLIC forma SFML::Graphics)
+    target_compile_features(forma_sfml PUBLIC cxx_std_20)
+
+    add_executable(forma_playground examples/playground.cpp)
+    target_link_libraries(forma_playground PRIVATE forma_sfml)
+
+    add_executable(forma_walk examples/walk.cpp)
+    target_link_libraries(forma_walk PRIVATE forma_sfml)
+
+    FetchContent_Declare(
+        imgui
+        GIT_REPOSITORY https://github.com/ocornut/imgui.git
+        GIT_TAG v1.91.9
+        GIT_SHALLOW TRUE
+    )
+    FetchContent_GetProperties(imgui)
+    if(NOT imgui_POPULATED)
+        FetchContent_Populate(imgui)
+    endif()
+    add_library(forma_imgui STATIC
+        ${imgui_SOURCE_DIR}/imgui.cpp
+        ${imgui_SOURCE_DIR}/imgui_draw.cpp
+        ${imgui_SOURCE_DIR}/imgui_tables.cpp
+        ${imgui_SOURCE_DIR}/imgui_widgets.cpp
+        editor/imgui_sfml.cpp
+    )
+    target_include_directories(forma_imgui PUBLIC ${imgui_SOURCE_DIR})
+    target_link_libraries(forma_imgui PUBLIC SFML::Graphics)
+    target_compile_features(forma_imgui PUBLIC cxx_std_20)
+
+    add_executable(forma_editor editor/main.cpp)
+    target_link_libraries(forma_editor PRIVATE forma_sfml forma_imgui)
 endif()
